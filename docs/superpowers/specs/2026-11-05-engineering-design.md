@@ -151,6 +151,8 @@ LogService.Read(ctx context.Context, query LogQuery) (LogPage, error)
 
 InitWorkspaceRequest 为 root、name。RegisterProjectRequest 为 document、bindings、includedFiles；SaveProjectRequest 增加 ExpectedRevision。CheckRequest 为 ProfileRef 和 enabledFeatureIds。ProjectQuery 为 group、search、offset、limit，limit 1—100。ProjectView 至少返回 document、revision、checkSummary、runSummary；不返回 secret 值。
 
+enabledFeatureIds如提供，须与该revision中已保存profile的featureIds一致；变更可选功能先保存新revision，再检测/准备/启动，避免检测与启动使用两套输入。只读文件指纹覆盖显式声明的输入，不冒充整个Git工作树干净的证明；可能含秘密的配置默认仅检查存在性，未核对的期望hash保持unknown。
+
 OperationPlan 为 id、kind、workspaceId、ProfileRef（适用时）、fingerprint、steps、requiredBindings、warnings、createdAt。步骤记录 effect、cancelPolicy、输入指纹和影响资源，不能把后端命令解释权交给前端。
 
 ImportPreviewRequest 为 sourcePath。ImportPreview 为 id、bundleIdentity、document、issues、requiredBindings、expiresAt。CommitImportRequest 为 previewId、bindings。ExportRequest 为 ProfileRef、destinationPath。导出明确选择某个 revision，不携带数据库、源码、镜像或本机授权。
