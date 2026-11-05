@@ -72,3 +72,63 @@ func TestTaskEventsAndRequestIdentitySurviveReopen(t *testing.T) {
 		t.Fatalf("event replay: %+v %v", events, err)
 	}
 }
+
+func TestResolveWaitingTaskChangesActionAndStateAtomically(t *testing.T) {
+	ctx := context.Background()
+	repo, err := NewFactory().Initialize(ctx, t.TempDir(), "resolve")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	store := repo.(ports.TaskRepository)
+	created, err := store.CreateTask(
+		ctx,
+		task.Record{
+			View:        task.View{ID: "11111111-1111-4111-8111-111111111111", Kind: task.Exit},
+			PlanID:      "plan",
+			RequestID:   "resolve",
+			RequestHash: "body",
+			CreatedAt:   time.Now().UTC(),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	running, err := store.TransitionTask(
+		ctx,
+		created.View.ID,
+		created.View.LastEventSeq,
+		task.Running,
+		nil,
+		task.EventData{Code: "RUNNING"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting, err := store.TransitionTask(
+		ctx,
+		running.View.ID,
+		running.View.LastEventSeq,
+		task.WaitingUser,
+		nil,
+		task.EventData{Code: "WAITING"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := store.ResolveTask(ctx, waiting.View.ID, waiting.View.LastEventSeq, "continue-wait")
+	if err != nil || resolved.View.State != task.Queued || resolved.ResumeAction != "continue-wait" {
+		t.Fatalf("resolve not committed together: %+v %v", resolved, err)
+	}
+	if _, err = store.ResolveTask(ctx, waiting.View.ID, waiting.View.LastEventSeq, "abort-exit"); err == nil ||
+		err.Error() != "TASK_CONFLICT" {
+		t.Fatal("old resolve overwrote action", err)
+	}
+	latest, err := store.Task(ctx, created.View.ID)
+	if err != nil || latest.ResumeAction != "continue-wait" {
+		t.Fatal("failed resolve changed action", err)
+	}
+	if latest.View.LastEventSeq != "4" {
+		t.Fatal("resolve published a partial intermediate action", latest.View.LastEventSeq)
+	}
+}

@@ -20,7 +20,7 @@ type TaskRepository interface {
 	RecoverTasks(context.Context) (int, error)
 	ReserveTaskResources(context.Context, task.ID, []string) (bool, error)
 	ReleaseTaskResources(context.Context, task.ID) error
-	SetTaskResumeAction(context.Context, task.ID, string) error
+	ResolveTask(context.Context, task.ID, string, string) (task.Record, error)
 }
 
 // TaskControl offers explicit safe points; cancelling an HTTP call does not cancel a job.

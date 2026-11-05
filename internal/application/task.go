@@ -264,25 +264,7 @@ func (s *TaskService) Resolve(ctx context.Context, req ResolveTaskRequest) (Task
 	if req.Action == "abort-exit" && record.View.Kind != task.Exit {
 		return TaskView{}, problem.New("TASK_ACTION_INVALID", "")
 	}
-	if err := store.SetTaskResumeAction(ctx, req.TaskID, req.Action); err != nil {
-		return TaskView{}, err
-	}
-	record, err = store.Task(ctx, req.TaskID)
-	if err != nil {
-		return TaskView{}, err
-	}
-	to := task.Queued
-	if req.Action == "abort-exit" {
-		to = task.Cancelled
-	}
-	record, err = store.TransitionTask(
-		ctx,
-		req.TaskID,
-		record.View.LastEventSeq,
-		to,
-		nil,
-		task.EventData{Code: "TASK_RESOLVED"},
-	)
+	record, err = store.ResolveTask(ctx, req.TaskID, req.ExpectedEventSeq, req.Action)
 	if err == nil {
 		if req.Action == "abort-exit" {
 			s.exitID = ""

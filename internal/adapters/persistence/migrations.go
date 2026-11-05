@@ -9,7 +9,7 @@ import (
 const currentDBVersion = 3
 
 const activeStateQuery = `
-SELECT EXISTS(SELECT 1 FROM runs WHERE state NOT IN ('stopped','failed-start'))
+SELECT EXISTS(SELECT 1 FROM runs WHERE state NOT IN ('stopped','failed-start','detached'))
 OR EXISTS(SELECT 1 FROM tasks WHERE state IN ('queued','running','waiting-user','cancel-requested'))
 OR EXISTS(
     SELECT 1 FROM resources

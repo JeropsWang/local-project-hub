@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	_ "modernc.org/sqlite"
 
@@ -25,10 +26,11 @@ func NewFactory() ports.WorkspaceFactory { return factory{} }
 
 // Store serializes configuration writes and owns the SQLite connection and file lock.
 type Store struct {
-	mu   sync.Mutex
-	db   *sql.DB
-	dir  *filesystem.Directory
-	info workspace.View
+	ownerVerified atomic.Bool
+	mu            sync.Mutex
+	db            *sql.DB
+	dir           *filesystem.Directory
+	info          workspace.View
 }
 
 // Info returns local workspace state; it contains no project secrets.
@@ -89,8 +91,23 @@ func (f factory) Initialize(ctx context.Context, root, name string) (ports.Repos
 	if err := dir.WriteIdentity(identity); err != nil {
 		return nil, err
 	}
+	if err := dir.WriteLocalOwner(identity.WorkspaceID); err != nil {
+		return nil, err
+	}
 	success = true
-	return &Store{db: db, dir: dir, info: workspace.View{WorkspaceID: identity.WorkspaceID, Name: identity.Name, Root: dir.Path, State: "ready", DBSchemaVersion: currentDBVersion}}, nil
+	store := &Store{
+		db:  db,
+		dir: dir,
+		info: workspace.View{
+			WorkspaceID:     identity.WorkspaceID,
+			Name:            identity.Name,
+			Root:            dir.Path,
+			State:           "ready",
+			DBSchemaVersion: currentDBVersion,
+		},
+	}
+	store.ownerVerified.Store(true)
+	return store, nil
 }
 
 func (f factory) Open(ctx context.Context, root string) (ports.Repository, error) {
@@ -134,12 +151,32 @@ func (f factory) Open(ctx context.Context, root string) (ports.Repository, error
 	}
 	version = currentDBVersion
 	state := "ready"
-	if !strings.EqualFold(filepath.Clean(lastRoot), dir.Path) {
+	ownerVerified, err := dir.LocalOwnerMatches(id)
+	if err != nil {
+		return nil, err
+	}
+	if !ownerVerified || !strings.EqualFold(filepath.Clean(lastRoot), dir.Path) {
 		state = "rebind-required"
 	}
-	store := &Store{db: db, dir: dir, info: workspace.View{WorkspaceID: id, Name: identity.Name, Root: dir.Path, State: state, DBSchemaVersion: version}}
+	store := &Store{
+		db:  db,
+		dir: dir,
+		info: workspace.View{
+			WorkspaceID:     id,
+			Name:            identity.Name,
+			Root:            dir.Path,
+			State:           state,
+			DBSchemaVersion: version,
+		},
+	}
+	store.ownerVerified.Store(ownerVerified)
 	if err := store.recoverRevisions(ctx); err != nil {
 		return nil, err
+	}
+	if ownerVerified {
+		if err := store.interruptRuns(ctx); err != nil {
+			return nil, err
+		}
 	}
 	success = true
 	return store, nil
@@ -160,6 +197,11 @@ func connect(path string) (*sql.DB, error) {
 
 // HasActive prevents workspace switches from detaching managed runs or mutating tasks.
 func (s *Store) HasActive(ctx context.Context) (bool, error) {
+	// Unverified origin rows are evidence about another owner, not acquisitions
+	// on this machine. They remain visible and untrusted until explicit rebind.
+	if !s.ownerVerified.Load() {
+		return false, nil
+	}
 	var active bool
 	err := s.db.QueryRowContext(ctx, activeStateQuery).Scan(&active)
 	return active, err
@@ -187,6 +229,11 @@ func (s *Store) ConfirmRelocation(ctx context.Context, id string) (workspace.Vie
 		return workspace.View{}, err
 	}
 	defer tx.Rollback()
+	if !s.ownerVerified.Load() {
+		if err := detachOriginState(ctx, tx); err != nil {
+			return workspace.View{}, err
+		}
+	}
 	for _, statement := range []string{"DELETE FROM bindings", "DELETE FROM resources", "UPDATE plans SET state='invalidated'"} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return workspace.View{}, err
@@ -198,6 +245,10 @@ func (s *Store) ConfirmRelocation(ctx context.Context, id string) (workspace.Vie
 	if err := tx.Commit(); err != nil {
 		return workspace.View{}, err
 	}
+	if err := s.dir.WriteLocalOwner(id); err != nil {
+		return workspace.View{}, err
+	}
+	s.ownerVerified.Store(true)
 	s.info.State = "ready"
 	return s.info, nil
 }

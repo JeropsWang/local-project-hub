@@ -191,6 +191,7 @@ func (e *StopExecutor) stopRun(
 		if acquisition.Phase == "acquiring" {
 			return e.stopWaiting(ctx, store, record, "RUN_ACQUISITION_UNCERTAIN")
 		}
+		alreadyInitiated := acquisition.Phase == "stopping" && acquisition.OperationID != ""
 		if acquisition.OperationID == "" || control.ResumeAction() == "retry" {
 			operation, err := identity.NewUUID()
 			if err != nil {
@@ -210,7 +211,9 @@ func (e *StopExecutor) stopRun(
 				Kind:        unit.StopKind,
 				OperationID: acquisition.OperationID,
 				Timeout:     time.Duration(unit.TimeoutSeconds) * time.Second,
-				WaitOnly:    control.ResumeAction() == "continue-wait",
+				// Continue only an already-started operation. Once it converges,
+				// the next dependency still needs its initial normal stop request.
+				WaitOnly: alreadyInitiated && control.ResumeAction() == "continue-wait",
 			}
 			if unit.Stop != nil {
 				spec.Command = &ports.ProcessCommand{

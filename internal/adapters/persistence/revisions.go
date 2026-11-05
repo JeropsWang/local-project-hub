@@ -18,7 +18,13 @@ import (
 )
 
 // Register writes revision 1; identities are never silently replaced.
-func (s *Store) Register(ctx context.Context, doc project.Document, data []byte, bindings []project.Binding, files map[string][]byte) (project.Snapshot, error) {
+func (s *Store) Register(
+	ctx context.Context,
+	doc project.Document,
+	data []byte,
+	bindings []project.Binding,
+	files map[string][]byte,
+) (project.Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var exists bool
@@ -32,7 +38,14 @@ func (s *Store) Register(ctx context.Context, doc project.Document, data []byte,
 }
 
 // Save compares the current revision before publishing new immutable files.
-func (s *Store) Save(ctx context.Context, doc project.Document, expected int32, data []byte, bindings []project.Binding, files map[string][]byte) (project.Snapshot, error) {
+func (s *Store) Save(
+	ctx context.Context,
+	doc project.Document,
+	expected int32,
+	data []byte,
+	bindings []project.Binding,
+	files map[string][]byte,
+) (project.Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var revision int32
@@ -48,7 +61,14 @@ func (s *Store) Save(ctx context.Context, doc project.Document, expected int32, 
 	return s.writeRevision(ctx, doc, revision, data, bindings, files)
 }
 
-func (s *Store) writeRevision(ctx context.Context, doc project.Document, previous int32, data []byte, bindings []project.Binding, files map[string][]byte) (project.Snapshot, error) {
+func (s *Store) writeRevision(
+	ctx context.Context,
+	doc project.Document,
+	previous int32,
+	data []byte,
+	bindings []project.Binding,
+	files map[string][]byte,
+) (project.Snapshot, error) {
 	revision := previous + 1
 	relative := filesystem.RevisionPath(doc.ProjectID, revision)
 	var nonce [32]byte
@@ -70,7 +90,12 @@ func (s *Store) writeRevision(ctx context.Context, doc project.Document, previou
 		if cleanupErr := s.dir.DiscardPublication(publication); cleanupErr != nil {
 			return project.Snapshot{}, cleanupErr
 		}
-		_, _ = s.db.ExecContext(ctx, "DELETE FROM revision_journal WHERE project_id=? AND revision=?", doc.ProjectID, revision)
+		_, _ = s.db.ExecContext(
+			ctx,
+			"DELETE FROM revision_journal WHERE project_id=? AND revision=?",
+			doc.ProjectID,
+			revision,
+		)
 		return project.Snapshot{}, err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -117,11 +142,27 @@ func (s *Store) writeRevision(ctx context.Context, doc project.Document, previou
 	if err := tx.Commit(); err != nil {
 		return project.Snapshot{}, err
 	}
-	return project.Snapshot{Document: doc, Revision: revision, ContentHash: hash, CreatedAt: now, CheckSummary: "unverified", RunSummary: "stopped"}, nil
+	summary, err := s.recordedRunSummary(ctx, doc.ProjectID)
+	if err != nil {
+		return project.Snapshot{}, err
+	}
+	return project.Snapshot{
+		Document:     doc,
+		Revision:     revision,
+		ContentHash:  hash,
+		CreatedAt:    now,
+		CheckSummary: "unverified",
+		RunSummary:   summary,
+	}, nil
 }
 
 // resolveFiles checks old bytes against stored hashes before carrying them forward.
-func (s *Store) resolveFiles(ctx context.Context, doc project.Document, previous int32, provided map[string][]byte) (map[string][]byte, error) {
+func (s *Store) resolveFiles(
+	ctx context.Context,
+	doc project.Document,
+	previous int32,
+	provided map[string][]byte,
+) (map[string][]byte, error) {
 	result := map[string][]byte{}
 	for key, value := range provided {
 		result[key] = value
@@ -140,7 +181,9 @@ func (s *Store) resolveFiles(ctx context.Context, doc project.Document, previous
 				return nil, problem.New("BUNDLE_FILE_MISSING", file.BundlePath)
 			}
 			var err error
-			data, err = s.dir.Root.ReadFile(path.Join(filesystem.RevisionPath(doc.ProjectID, previous), file.BundlePath))
+			data, err = s.dir.Root.ReadFile(
+				path.Join(filesystem.RevisionPath(doc.ProjectID, previous), file.BundlePath),
+			)
 			if err != nil {
 				return nil, problem.New("BUNDLE_FILE_MISSING", file.BundlePath)
 			}
@@ -212,7 +255,8 @@ func (s *Store) Get(ctx context.Context, id string) (project.Snapshot, error) {
 	var result project.Snapshot
 	var data []byte
 	var created string
-	err := s.db.QueryRowContext(ctx, `SELECT r.document_json,r.revision,r.content_hash,r.created_at FROM project_revisions r JOIN projects p ON p.project_id=r.project_id AND p.current_revision=r.revision WHERE p.project_id=?`, id).Scan(&data, &result.Revision, &result.ContentHash, &created)
+	err := s.db.QueryRowContext(ctx, `SELECT r.document_json,r.revision,r.content_hash,r.created_at FROM project_revisions r JOIN projects p ON p.project_id=r.project_id AND p.current_revision=r.revision WHERE p.project_id=?`, id).
+		Scan(&data, &result.Revision, &result.ContentHash, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, problem.New("PROJECT_MISSING", "")
 	}
@@ -231,13 +275,25 @@ func (s *Store) Get(ctx context.Context, id string) (project.Snapshot, error) {
 		return result, problem.New("REVISION_DOCUMENT_INVALID", "")
 	}
 	result.CheckSummary = "unverified"
-	result.RunSummary = "stopped"
+	result.RunSummary, err = s.recordedRunSummary(ctx, id)
+	if err != nil {
+		return project.Snapshot{}, err
+	}
 	return result, nil
 }
 
 // List returns bounded deterministic results; parameterized filters never become SQL.
 func (s *Store) List(ctx context.Context, q project.Query) ([]project.Snapshot, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT project_id FROM projects WHERE (?='' OR json_extract((SELECT document_json FROM project_revisions WHERE project_id=projects.project_id AND revision=projects.current_revision),'$.group')=?) AND (?='' OR instr(lower(name),lower(?))>0) ORDER BY name,project_id LIMIT ? OFFSET ?`, q.Group, q.Group, q.Search, q.Search, q.Limit, q.Offset)
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT project_id FROM projects WHERE (?='' OR json_extract((SELECT document_json FROM project_revisions WHERE project_id=projects.project_id AND revision=projects.current_revision),'$.group')=?) AND (?='' OR instr(lower(name),lower(?))>0) ORDER BY name,project_id LIMIT ? OFFSET ?`,
+		q.Group,
+		q.Group,
+		q.Search,
+		q.Search,
+		q.Limit,
+		q.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +325,8 @@ func (s *Store) List(ctx context.Context, q project.Query) ([]project.Snapshot, 
 // Binding returns a local locator or opaque secret reference, never a plaintext secret.
 func (s *Store) Binding(ctx context.Context, id, key string) (project.Binding, error) {
 	var result project.Binding
-	err := s.db.QueryRowContext(ctx, "SELECT binding_key,kind,local_locator,secret_ref FROM bindings WHERE workspace_id=? AND project_id=? AND binding_key=?", s.info.WorkspaceID, id, key).Scan(&result.Key, &result.Kind, &result.LocalLocator, &result.SecretRef)
+	err := s.db.QueryRowContext(ctx, "SELECT binding_key,kind,local_locator,secret_ref FROM bindings WHERE workspace_id=? AND project_id=? AND binding_key=?", s.info.WorkspaceID, id, key).
+		Scan(&result.Key, &result.Kind, &result.LocalLocator, &result.SecretRef)
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, problem.New("BINDING_MISSING", key)
 	}

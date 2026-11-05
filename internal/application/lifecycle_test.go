@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -28,6 +29,42 @@ type lifecycleProcesses struct {
 	fail     bool
 	failUnit string
 	starts   int
+}
+
+type ownerProbe struct{ calls int }
+
+func (p *ownerProbe) Discover(context.Context, ports.ProbeRequest) (ports.Observation, error) {
+	p.calls++
+	return ports.Observation{}, nil
+}
+
+func TestUnverifiedWorkspaceNeverProbesPriorBindings(t *testing.T) {
+	ws, _, _, doc := lifecycleFixture(t)
+	root := ws.current.Info().Root
+	if err := ws.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".local-owner.dpapi"), []byte("synthetic foreign proof"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.Open(context.Background(), root); err != nil {
+		t.Fatal(err)
+	}
+	probe := &ownerProbe{}
+	checks := NewCheckService(ws, probe, environment.StaticInspector{}, nil)
+	_, err := checks.Check(
+		context.Background(),
+		CheckRequest{
+			ProfileRef: project.Ref{
+				ProjectID:        project.ID(doc.ProjectID),
+				ProfileID:        "development",
+				ExpectedRevision: 1,
+			},
+		},
+	)
+	if err == nil || err.Error() != "WORKSPACE_REBIND_REQUIRED" || probe.calls != 0 {
+		t.Fatalf("used origin bindings before rebind: %d %v", probe.calls, err)
+	}
 }
 
 func (p *lifecycleProcesses) Start(_ context.Context, spec ports.ProcessSpec) (run.Identity, error) {
@@ -230,6 +267,10 @@ func seedLifecycleRun(t *testing.T, store ports.RunRepository, doc project.Docum
 func TestEditedConfigCannotChangeRunningStop(t *testing.T) {
 	ws, projects, store, doc := lifecycleFixture(t)
 	seedLifecycleRun(t, store, doc)
+	listed, err := projects.Get(context.Background(), project.ID(doc.ProjectID))
+	if err != nil || listed.RunSummary != "running" {
+		t.Fatalf("running project shown stopped: %+v %v", listed, err)
+	}
 	doc.Name = "edited after launch"
 	if _, err := projects.Save(context.Background(), SaveProjectRequest{RegisterProjectRequest: RegisterProjectRequest{Document: doc}, ExpectedRevision: 1}); err != nil {
 		t.Fatal(err)
@@ -364,6 +405,80 @@ func TestQuitFailureCanResumeOrAbortWithoutDeadlock(t *testing.T) {
 }
 
 type lifecycleControl struct{}
+
+type resumedLifecycleControl struct {
+	lifecycleControl
+	action string
+}
+
+func (c resumedLifecycleControl) ResumeAction() string { return c.action }
+
+func TestContinueWaitStartsNextStopNormally(t *testing.T) {
+	ws, _, store, doc := lifecycleFixture(t)
+	snapshot := run.Snapshot{
+		ID:         "11111111-1111-4111-8111-111111111111",
+		ProfileRef: project.Ref{ProjectID: project.ID(doc.ProjectID), ProfileID: "development", ExpectedRevision: 1},
+		Document:   doc,
+		CreatedAt:  time.Now().UTC(),
+		Units: []run.UnitPlan{
+			{
+				ID:             "database",
+				Kind:           "process",
+				Control:        "managed",
+				ResourceID:     "database",
+				StopKind:       "managed-pipe",
+				TimeoutSeconds: 1,
+			},
+			{
+				ID:             "api",
+				Kind:           "process",
+				Control:        "managed",
+				ResourceID:     "api",
+				StopKind:       "managed-pipe",
+				TimeoutSeconds: 1,
+			},
+		},
+	}
+	ctx := context.Background()
+	if err := store.CreateRun(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	record, err := store.Run(ctx, snapshot.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.State = "running"
+	for _, unit := range snapshot.Units {
+		record.Acquisitions = append(
+			record.Acquisitions,
+			run.Acquisition{
+				UnitID:        unit.ID,
+				ResourceID:    unit.ResourceID,
+				Identity:      run.Identity{Kind: "process", ControlID: unit.ID},
+				NewlyAcquired: true,
+				Phase:         "active",
+			},
+		)
+	}
+	if err = saveRun(ctx, store, &record); err != nil {
+		t.Fatal(err)
+	}
+	processes := &lifecycleProcesses{fail: true}
+	stop := NewStopExecutor(ws, processes, nil)
+	if err = stop.stopRun(ctx, store, &record, false, false, lifecycleControl{}); err == nil {
+		t.Fatal("missing initial stop wait")
+	}
+	processes.fail = false
+	if err = stop.stopRun(ctx, store, &record, false, false, resumedLifecycleControl{action: "continue-wait"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(processes.commands) != 3 || !processes.commands[1].WaitOnly || processes.commands[2].WaitOnly {
+		t.Fatalf("continue-wait leaked into a stop not yet started: %+v", processes.commands)
+	}
+	if processes.commands[0].OperationID != processes.commands[1].OperationID {
+		t.Fatal("continue-wait replaced the pending operation")
+	}
+}
 
 func (lifecycleControl) Checkpoint(context.Context) error               { return nil }
 func (lifecycleControl) Progress(context.Context, task.EventData) error { return nil }

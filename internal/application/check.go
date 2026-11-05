@@ -59,6 +59,11 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 	if repo == nil {
 		return CheckReport{}, problem.New("WORKSPACE_REQUIRED", "")
 	}
+	// A same-path copy can contain plausible locators for another host. Rebind
+	// before touching them, including fixed read-only interpreter probes.
+	if repo.Info().State != "ready" {
+		return CheckReport{}, problem.New("WORKSPACE_REBIND_REQUIRED", "")
+	}
 	view, err := repo.Get(ctx, string(req.ProjectID))
 	if err != nil {
 		return CheckReport{}, err

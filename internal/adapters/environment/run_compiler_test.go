@@ -86,6 +86,12 @@ func TestRunCompilerFreezesScriptsAndKeepsSecretsAsReferences(t *testing.T) {
 		snapshot.Units[0].Stop.Args[1] != "${file:stop}" {
 		t.Fatal("stop did not freeze")
 	}
+	req.Document.Units["api"].Start.EnvBindings["GOTOOLCHAIN"] = "credential"
+	if _, err = (RunCompiler{}).CompileRun(context.Background(), req); err == nil ||
+		err.Error() != "ENVIRONMENT_VALUE_MANAGED" {
+		t.Fatal("project overwrote managed runtime/cache policy", err)
+	}
+	delete(req.Document.Units["api"].Start.EnvBindings, "GOTOOLCHAIN")
 	req.Document.Units["api"].Start.CWD.RelativePath = "../escape"
 	if _, err = (RunCompiler{}).CompileRun(context.Background(), req); err == nil {
 		t.Fatal("cwd escaped binding")

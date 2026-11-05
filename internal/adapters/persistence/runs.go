@@ -28,7 +28,7 @@ func (s *Store) CreateRun(ctx context.Context, snapshot run.Snapshot) error {
 	}
 	defer tx.Rollback()
 	var exists bool
-	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM runs WHERE run_id=? OR (project_id=? AND state NOT IN ('stopped','failed-start')))", snapshot.ID, snapshot.ProfileRef.ProjectID).Scan(&exists); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM runs WHERE run_id=? OR (project_id=? AND state NOT IN ('stopped','failed-start','detached')))", snapshot.ID, snapshot.ProfileRef.ProjectID).Scan(&exists); err != nil {
 		return err
 	}
 	if exists {
@@ -82,7 +82,7 @@ func (s *Store) Run(ctx context.Context, id string) (run.Record, error) {
 func (s *Store) ActiveRuns(ctx context.Context) ([]run.Record, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
-		"SELECT immutable_plan,identity_json,state FROM runs WHERE state NOT IN ('stopped','failed-start')",
+		"SELECT immutable_plan,identity_json,state FROM runs WHERE state NOT IN ('stopped','failed-start','detached')",
 	)
 	if err != nil {
 		return nil, err
@@ -97,6 +97,31 @@ func (s *Store) ActiveRuns(ctx context.Context) ([]run.Record, error) {
 		result = append(result, record)
 	}
 	return result, rows.Err()
+}
+
+// interruptRuns records loss of live supervision after opening an existing local
+// workspace. Stored PIDs do not reconstruct kernel handles or replay side effects.
+func (s *Store) interruptRuns(ctx context.Context) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE runs SET state='interrupted',identity_json=CASE WHEN json_valid(identity_json) THEN json_set(identity_json,'$.state','interrupted','$.version',coalesce(json_extract(identity_json,'$.version'),0)+1) ELSE identity_json END WHERE state NOT IN ('stopped','failed-start','detached','interrupted')`,
+	)
+	return err
+}
+
+// recordedRunSummary returns saved observation; an unverified host cannot display
+// imported origin rows as its own running applications.
+func (s *Store) recordedRunSummary(ctx context.Context, projectID string) (string, error) {
+	if !s.ownerVerified.Load() {
+		return "unverified", nil
+	}
+	var state string
+	err := s.db.QueryRowContext(ctx, "SELECT state FROM runs WHERE project_id=? AND state NOT IN ('stopped','failed-start','detached') LIMIT 1", projectID).
+		Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "stopped", nil
+	}
+	return state, err
 }
 
 // UpdateRun changes only the journal; it cannot replace the immutable snapshot.
@@ -125,7 +150,7 @@ func (s *Store) UpdateRun(ctx context.Context, record run.Record, expected int64
 	if current.Version != expected {
 		return problem.New("RUN_CONFLICT", "")
 	}
-	if current.State == "stopped" || current.State == "failed-start" {
+	if current.State == "stopped" || current.State == "failed-start" || current.State == "detached" {
 		return problem.New("RUN_TERMINAL", "")
 	}
 	record.Version = expected + 1

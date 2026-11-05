@@ -249,20 +249,15 @@ func (a *NativeProcessAdapter) original(identity run.Identity) (*nativeInstance,
 	if identity != instance.identity {
 		return nil, problem.New("INSTANCE_IDENTITY_MISMATCH", "")
 	}
-	status, err := windows.WaitForSingleObject(instance.process, 0)
-	if err != nil {
+	if _, err := windows.WaitForSingleObject(instance.process, 0); err != nil {
 		return nil, err
 	}
-	if status == windows.WAIT_OBJECT_0 {
-		// The retained handle still refers to the exact launch object after exit.
-		// Windows may no longer expose its image path at this point; reopening by
-		// PID would lose that identity and could target a replacement process.
-		return instance, nil
-	}
-	actual, err := processIdentity(instance.process, identity.PID, identity.ControlID)
-	if err != nil || actual != identity {
-		return nil, problem.New("INSTANCE_IDENTITY_MISMATCH", "")
-	}
+	// Start captured PID, creation time and actual image while suspended. The
+	// complete caller identity matched that immutable acquisition above, and this
+	// handle cannot change process objects while held under a.mu. Image queries
+	// can fail during exit cleanup before the process object becomes signaled;
+	// repeating that query introduces a false mismatch, not stronger authority.
+	// Never replace this handle with OpenProcess on a reusable PID.
 	return instance, nil
 }
 

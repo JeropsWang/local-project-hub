@@ -390,14 +390,26 @@ func (s *Store) ReleaseTaskResources(ctx context.Context, id task.ID) error {
 	return err
 }
 
-// SetTaskResumeAction records the user's action without inventing another task ID.
-func (s *Store) SetTaskResumeAction(ctx context.Context, id task.ID, action string) error {
-	_, err := s.mutateTask(ctx, id, func(record *task.Record) error {
-		if record.View.State != task.WaitingUser {
-			return problem.New("TASK_STATE_INVALID", "")
+// ResolveTask compares the cursor, records the action and requeues/cancels in one
+// transaction. A crash or competing Cancel cannot expose a half-applied resume.
+func (s *Store) ResolveTask(ctx context.Context, id task.ID, expected, action string) (task.Record, error) {
+	return s.mutateTask(ctx, id, func(record *task.Record) error {
+		if record.View.State != task.WaitingUser || record.View.LastEventSeq != expected {
+			return problem.New("TASK_CONFLICT", "")
+		}
+		if action != "retry" && action != "continue-wait" && action != "abort-exit" {
+			return problem.New("TASK_ACTION_INVALID", "")
+		}
+		if action == "abort-exit" && record.View.Kind != task.Exit {
+			return problem.New("TASK_ACTION_INVALID", "")
 		}
 		record.ResumeAction = action
+		record.View.State = task.Queued
+		if action == "abort-exit" {
+			record.View.State = task.Cancelled
+		}
+		record.View.Error = nil
+		record.View.Cancelable = record.View.Kind != task.Exit && !task.Terminal(record.View.State)
 		return nil
-	}, task.EventData{Code: "TASK_RESOLVE_REQUESTED"})
-	return err
+	}, task.EventData{Code: "TASK_RESOLVED"})
 }

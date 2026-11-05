@@ -259,6 +259,15 @@ func compileRunCommand(
 		compiled.Args[index] = arg
 	}
 	for name, key := range command.EnvBindings {
+		switch strings.ToUpper(name) {
+		case "PYTHONDONTWRITEBYTECODE",
+			"PYTHONPYCACHEPREFIX",
+			"GOCACHE",
+			"GOMODCACHE",
+			"GOTOOLCHAIN",
+			"NPM_CONFIG_CACHE":
+			return compiled, problem.New("ENVIRONMENT_VALUE_MANAGED", name)
+		}
 		binding, ok := req.Bindings[key]
 		if !ok || binding.Kind != "secret" || binding.SecretRef == "" {
 			return compiled, problem.New("SECRET_BINDING_REQUIRED", key)

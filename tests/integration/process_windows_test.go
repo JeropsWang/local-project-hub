@@ -117,7 +117,7 @@ func TestOwnedChildPipeServerCanStopAfterSupervisorExit(t *testing.T) {
 				for time.Now().Before(deadline) {
 					state, err := adapter.Inspect(context.Background(), instance)
 					if err != nil {
-						t.Fatal(err)
+						t.Fatalf("inspect retained original: %#v", err)
 					}
 					if !state.RootRunning {
 						break

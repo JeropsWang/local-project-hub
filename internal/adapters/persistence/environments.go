@@ -100,7 +100,7 @@ func (s *Store) ActivateEnvironment(ctx context.Context, receipt preparation.Rec
 		return problem.New("REVISION_CONFLICT", "")
 	}
 	var running bool
-	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM runs WHERE project_id=? AND state NOT IN ('stopped','failed-start'))", receipt.Ref.ProjectID).Scan(&running); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM runs WHERE project_id=? AND state NOT IN ('stopped','failed-start','detached'))", receipt.Ref.ProjectID).Scan(&running); err != nil {
 		return err
 	}
 	if running {
