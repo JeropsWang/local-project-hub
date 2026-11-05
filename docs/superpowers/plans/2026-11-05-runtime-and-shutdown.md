@@ -87,7 +87,7 @@ Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
 以下是测试名及关键断言片段；夹具在列出的测试文件内构建，输入使用仓库脱敏示例，不依赖真实工程。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestCorruptDownloadAndCancellationLeaveOriginalUntouched(t *testing.T) {
@@ -100,21 +100,21 @@ func TestTwoPythonABIsAndHardcodedEnvironment(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证红灯**
+- [x] **Step 2: 验证红灯**
 
 Run: `go test ./internal/adapters/environment ./tests/integration`
 Expected: FAIL，缺少下述接口或行为；不能因测试环境损坏而把失败当成有效红灯。
 
-- [ ] **Step 3: 实现本任务接口**
+- [x] **Step 3: 实现本任务接口**
 
 实现内置供应描述（精确 URL/版本/架构/SHA-256/来源许可），Node/Go 官方 ZIP，Python 固定 Astral standalone install_only 构建。实现时从官方发布核对真实制品与哈希后锁定，不填猜测值。下载临时路径校验后原子发布，实际字节限额、路径/链接检查复用受限解包模块；运行时包限额单独为压缩1GiB/展开4GiB/单文件1GiB/文件数100000，配置ZIP限额不用于SDK。缓存/venv/npm/Go缓存均入工作空间。依赖恢复只在明确受管理的洁净源码副本，按锁文件执行；脚本副作用分类展示，不运行名为 NoStart 就假定无启动的脚本。typing 的 .deps 与 Bot 固定 venv 路径必须检查，不能覆盖原目录。Java/MySQL 返回手工步骤；可选模型不隐式下载。
 
-- [ ] **Step 4: 验证绿灯**
+- [x] **Step 4: 验证绿灯**
 
 Run: `go test ./internal/adapters/environment ./tests/integration`
 Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 显式暂存本任务 Files 中的实现与测试，检查无本机数据后执行 `git commit -m "feat: prepare pinned workspace runtimes"`。
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/JeropsWang/local-project-hub/internal/domain/preparation"
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 	"github.com/JeropsWang/local-project-hub/internal/domain/task"
 	"github.com/JeropsWang/local-project-hub/internal/ports"
@@ -13,11 +14,24 @@ import (
 type PrepareExecutor struct {
 	workspaces *WorkspaceService
 	provider   ports.RuntimeProvider
+	projects   ports.ProjectPreparer
+}
+
+// PrepareOption supplies backend capabilities matching those used to build the plan.
+type PrepareOption func(*PrepareExecutor)
+
+// PrepareProjectWith enables complete source/dependency preparation after SDK installation.
+func PrepareProjectWith(preparer ports.ProjectPreparer) PrepareOption {
+	return func(e *PrepareExecutor) { e.projects = preparer }
 }
 
 // NewPrepareExecutor receives the workspace-scoped SDK adapter through its port.
-func NewPrepareExecutor(ws *WorkspaceService, provider ports.RuntimeProvider) *PrepareExecutor {
-	return &PrepareExecutor{workspaces: ws, provider: provider}
+func NewPrepareExecutor(ws *WorkspaceService, provider ports.RuntimeProvider, options ...PrepareOption) *PrepareExecutor {
+	e := &PrepareExecutor{workspaces: ws, provider: provider}
+	for _, option := range options {
+		option(e)
+	}
+	return e
 }
 
 // Execute uses explicit checkpoints and progress rather than inheriting a frontend call's lifetime.
@@ -39,9 +53,47 @@ func (e *PrepareExecutor) Execute(ctx context.Context, plan task.Plan, control p
 	if view.Revision != plan.ProfileRef.ExpectedRevision {
 		return problem.New("PLAN_STALE", "")
 	}
+	locations := map[string]ports.RuntimeLocation{}
 	for _, step := range plan.Steps {
 		if err := control.Checkpoint(ctx); err != nil {
 			return err
+		}
+		if step.Action == "prepare-project" {
+			if e.projects == nil || plan.ProjectPreparation == nil || step.InputFingerprints["source"] != plan.ProjectPreparation.Fingerprint {
+				return problem.New("SOURCE_PLAN_STALE", "")
+			}
+			if err := control.Progress(ctx, task.EventData{Code: "PROJECT_PREPARATION_STARTED", StepID: step.ID}); err != nil {
+				return err
+			}
+			var receipt preparation.Receipt
+			err := withPreparationCancellation(ctx, control, func(ctx context.Context) error {
+				var err error
+				receipt, err = e.projects.Prepare(ctx, *plan.ProjectPreparation, locations)
+				return err
+			})
+			if err != nil {
+				return err
+			}
+			// Do not interrupt an atomic selection commit. Cancellation before this
+			// point leaves the previous selection and a complete reusable copy.
+			if err := control.Checkpoint(ctx); err != nil {
+				return err
+			}
+			e.workspaces.mu.RLock()
+			store, ok := repo.(ports.PreparedEnvironmentRepository)
+			if e.workspaces.current != repo || !ok {
+				e.workspaces.mu.RUnlock()
+				return problem.New("ENVIRONMENT_STORAGE_UNAVAILABLE", "")
+			}
+			err = store.ActivateEnvironment(ctx, receipt)
+			e.workspaces.mu.RUnlock()
+			if err != nil {
+				return err
+			}
+			if err := control.Progress(ctx, task.EventData{Code: "PROJECT_PREPARATION_COMPLETED", StepID: step.ID}); err != nil {
+				return err
+			}
+			continue
 		}
 		if step.Action != "prepare-runtime" {
 			return problem.New("PREPARATION_ACTION_UNSUPPORTED", step.ID)
@@ -68,6 +120,13 @@ func (e *PrepareExecutor) Execute(ctx context.Context, plan task.Plan, control p
 		})
 		if err != nil {
 			return err
+		}
+		locations[step.RequirementID] = location
+		if plan.ProjectPreparation != nil {
+			if err := control.Progress(ctx, task.EventData{Code: "RUNTIME_PREPARATION_COMPLETED", StepID: step.ID}); err != nil {
+				return err
+			}
+			continue
 		}
 		e.workspaces.mu.RLock()
 		if e.workspaces.current != repo {

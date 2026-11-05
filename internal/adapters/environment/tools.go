@@ -18,7 +18,9 @@ func toolArgs(tool string) (string, []string, error) {
 	case "go":
 		return "go.exe", []string{"version"}, nil
 	case "python":
-		return "python.exe", []string{"-I", "-S", "-c", `import json,sys,sysconfig,struct; print(json.dumps({"version":".".join(map(str,sys.version_info[:3])),"architecture":sysconfig.get_platform().split("-")[-1],"abi":sys.implementation.cache_tag,"executable":sys.executable}))`}, nil
+		// -I ignores environment options, so bytecode suppression must be an
+		// explicit flag. Otherwise a version query can rewrite bundled .pyc files.
+		return "python.exe", []string{"-I", "-B", "-S", "-c", `import json,sys,sysconfig,struct; print(json.dumps({"version":".".join(map(str,sys.version_info[:3])),"architecture":sysconfig.get_platform().split("-")[-1],"abi":sys.implementation.cache_tag,"executable":sys.executable}))`}, nil
 	case "java":
 		return "java.exe", []string{"-XshowSettings:properties", "-version"}, nil
 	case "docker":

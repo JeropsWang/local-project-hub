@@ -23,6 +23,7 @@ type PlanService struct {
 	workspaces      *WorkspaceService
 	checks          *CheckService
 	runtimeProvider ports.RuntimeProvider
+	projectPreparer ports.ProjectPreparer
 }
 
 // PlanOption supplies backend capabilities; no option can be read from project JSON.
@@ -31,6 +32,11 @@ type PlanOption func(*PlanService)
 // WithRuntimeProvider pins concrete supplies while preparing a preview.
 func WithRuntimeProvider(provider ports.RuntimeProvider) PlanOption {
 	return func(s *PlanService) { s.runtimeProvider = provider }
+}
+
+// WithProjectPreparer includes clean source copies and dependency effects in the preview.
+func WithProjectPreparer(preparer ports.ProjectPreparer) PlanOption {
+	return func(s *PlanService) { s.projectPreparer = preparer }
 }
 
 // NewPlanService does not execute any step while constructing a plan.
@@ -109,6 +115,7 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 	}
 	sort.Strings(plan.ResourceIDs)
 	if kind == task.Prepare {
+		runtimePlans := map[string]ports.RuntimeInstallPlan{}
 		keys := []string{}
 		for key := range requirements {
 			keys = append(keys, key)
@@ -128,8 +135,18 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 				fingerprints["runtime"] = runtimePlan.Fingerprint
 				fingerprints["artifactId"] = runtimePlan.ArtifactID
 				fingerprints["version"] = runtimePlan.Version
+				runtimePlans[key] = runtimePlan
 			}
 			plan.Steps = append(plan.Steps, task.Step{ID: "runtime-" + key, Action: "prepare-runtime", Effect: "install", CancelPolicy: "checkpoint", RequirementID: key, ResourceIDs: []string{}, InputFingerprints: fingerprints})
+		}
+		if s.projectPreparer != nil {
+			prepared, err := s.projectPreparer.Plan(ctx, ports.ProjectPreparationRequest{Ref: ref, Document: doc, UnitIDs: ordered, Bindings: input.Bindings, RuntimePlans: runtimePlans})
+			if err != nil {
+				return OperationPlan{}, err
+			}
+			plan.ProjectPreparation = &prepared
+			plan.Warnings = append(plan.Warnings, prepared.Warnings...)
+			plan.Steps = append(plan.Steps, task.Step{ID: "project-environment", Action: "prepare-project", Effect: "source-copy-and-package-install-scripts", CancelPolicy: "checkpoint", ResourceIDs: []string{}, InputFingerprints: map[string]string{"source": prepared.Fingerprint}})
 		}
 	} else {
 		if kind == task.Stop {
@@ -251,6 +268,7 @@ func (s *PlanService) validate(ctx context.Context, plan task.Plan) error {
 	if err != nil || input.WorkspaceID != plan.WorkspaceID || input.Hash() != plan.Fingerprint {
 		return problem.New("PLAN_STALE", "")
 	}
+	runtimePlans := map[string]ports.RuntimeInstallPlan{}
 	for _, step := range plan.Steps {
 		if step.Action != "prepare-runtime" || step.InputFingerprints["runtime"] == "" {
 			continue
@@ -260,6 +278,20 @@ func (s *PlanService) validate(ctx context.Context, plan task.Plan) error {
 		}
 		runtimePlan, err := s.runtimeProvider.Plan(ctx, ports.RuntimeRequest{Requirement: doc.Requirements[step.RequirementID], Constraints: report.Constraints})
 		if err != nil || runtimePlan.Fingerprint != step.InputFingerprints["runtime"] {
+			return problem.New("PLAN_STALE", "")
+		}
+		runtimePlans[step.RequirementID] = runtimePlan
+	}
+	if plan.ProjectPreparation != nil {
+		if s.projectPreparer == nil {
+			return problem.New("PLAN_STALE", "")
+		}
+		ordered, err := project.Order(doc, string(plan.ProfileRef.ProfileID))
+		if err != nil {
+			return problem.New("PLAN_STALE", "")
+		}
+		fresh, err := s.projectPreparer.Plan(ctx, ports.ProjectPreparationRequest{Ref: *plan.ProfileRef, Document: doc, UnitIDs: ordered, Bindings: input.Bindings, RuntimePlans: runtimePlans})
+		if err != nil || fresh.Fingerprint != plan.ProjectPreparation.Fingerprint {
 			return problem.New("PLAN_STALE", "")
 		}
 	}
