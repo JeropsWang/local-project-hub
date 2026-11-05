@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aquasecurity/go-pep440-version v0.0.1
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0

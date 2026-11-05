@@ -32,5 +32,20 @@
     "abi": "cp313",
     "observedABI": "cpython-313",
     "expected": "satisfied"
+  },
+  {
+    "range": "=3.13",
+    "version": "3.13",
+    "expected": "unknown"
+  },
+  {
+    "range": "3.13",
+    "version": "3.13",
+    "expected": "unknown"
+  },
+  {
+    "range": ">=3.12 || ==3.11",
+    "version": "3.11",
+    "expected": "unknown"
   }
 ]

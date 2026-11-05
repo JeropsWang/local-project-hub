@@ -14,16 +14,25 @@ import (
 
 // TestMain provides controlled native probe executables without using a real SDK.
 func TestMain(m *testing.M) {
-	switch filepath.Base(os.Args[0]) {
-	case "probe-node.exe":
-		fmt.Print(`{"version":"22.19.0","architecture":"amd64"}`)
-		os.Exit(0)
-	case "probe-flood.exe":
-		fmt.Print(strings.Repeat("x", 128*1024))
-		os.Exit(0)
-	case "probe-hang.exe":
-		time.Sleep(10 * time.Second)
-		os.Exit(0)
+	// Reuse the already-running test binary so antivirus scanning newly copied
+	// executables cannot consume the production five-second probe deadline.
+	if len(os.Args) > 1 && os.Args[1] == "-p" {
+		mode, err := os.ReadFile(filepath.Join(os.TempDir(), fmt.Sprintf("lph-probe-%d.mode", os.Getppid())))
+		if err != nil {
+			os.Exit(2)
+		}
+		switch string(mode) {
+		case "probe-node.exe":
+			fmt.Print(`{"version":"22.19.0","architecture":"amd64"}`)
+			os.Exit(0)
+		case "probe-flood.exe":
+			fmt.Print(strings.Repeat("x", 128*1024))
+			os.Exit(0)
+		case "probe-hang.exe":
+			time.Sleep(10 * time.Second)
+			os.Exit(0)
+		}
+		os.Exit(2)
 	}
 	os.Exit(m.Run())
 }
@@ -34,15 +43,12 @@ func executable(t *testing.T, name string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(self)
-	if err != nil {
+	file := filepath.Join(os.TempDir(), fmt.Sprintf("lph-probe-%d.mode", os.Getpid()))
+	if err := os.WriteFile(file, []byte(name), 0600); err != nil {
 		t.Fatal(err)
 	}
-	file := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(file, data, 0700); err != nil {
-		t.Fatal(err)
-	}
-	return file
+	t.Cleanup(func() { _ = os.Remove(file) })
+	return self
 }
 
 func TestDiscoverParsesFixedReadOnlyProbe(t *testing.T) {
@@ -86,5 +92,13 @@ func TestProbeRejectsProjectScriptsAndCustomArguments(t *testing.T) {
 		if _, err := probe.Discover(context.Background(), req); err == nil {
 			t.Fatal("untrusted execution accepted")
 		}
+	}
+}
+
+func TestJavaPropertiesDoNotMistakeClassfileForJVMVersion(t *testing.T) {
+	output := "Property settings:\n    java.class.version = 55.0\n    java.version = 11.0.16.1\n    os.arch = amd64\nopenjdk version \"11.0.16.1\" 2022-08-12\n"
+	version, architecture, _, _ := parseVersion("java", output, "missing-java.exe")
+	if version != "11.0.16.1" || architecture != "amd64" {
+		t.Fatalf("Java 11 misclassified: %s %s", version, architecture)
 	}
 }

@@ -3,12 +3,16 @@ package application_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/JeropsWang/local-project-hub/internal/adapters/environment"
 	"github.com/JeropsWang/local-project-hub/internal/application"
 	"github.com/JeropsWang/local-project-hub/internal/domain/check"
+	"github.com/JeropsWang/local-project-hub/internal/domain/project"
 	"github.com/JeropsWang/local-project-hub/internal/ports"
 )
 
@@ -25,6 +29,29 @@ func (p *boundedProbe) Discover(ctx context.Context, req ports.ProbeRequest) (po
 		return ports.Observation{}, ctx.Err()
 	}
 	return ports.Observation{Component: req.Tool, Version: "22.19.0", Architecture: "amd64", Status: check.Unknown}, nil
+}
+
+func TestCheckDoesNotTrustBindingRowWithoutWorkingDirectoryOrExecutable(t *testing.T) {
+	ws, projects := services(t)
+	ctx := context.Background()
+	source := t.TempDir()
+	doc := declaration(t, "11111111-1111-4111-8111-111111111111")
+	doc.Requirements = map[string]project.Requirement{}
+	doc.Files = map[string]project.File{}
+	doc.Units = map[string]project.Unit{"build": {ResourceID: "33333333-3333-4333-8333-333333333333", Label: "build", DependsOn: []string{}, RequirementIDs: []string{}, Kind: "task", Control: "managed", Effect: "build", CancelPolicy: "wait", Command: &project.Command{Executable: project.Executable{Kind: "binding", Binding: "source", RelativePath: "missing.exe"}, Args: []string{}, CWD: project.Path{Binding: "source", RelativePath: "missing-directory"}, EnvBindings: map[string]string{}}}}
+	doc.Profiles["development"] = project.Profile{Label: "dev", UnitIDs: []string{"build"}, FeatureIDs: []string{}}
+	view, err := projects.Register(ctx, application.RegisterProjectRequest{Document: doc, Bindings: []project.Binding{{Key: "source", Kind: "path", LocalLocator: source}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := application.NewCheckService(ws, &boundedProbe{}, environment.StaticInspector{}, nil)
+	report, err := service.Check(ctx, application.CheckRequest{ProfileRef: application.ProfileRef{ProjectID: application.ProjectID(doc.ProjectID), ProfileID: "development", ExpectedRevision: view.Revision}})
+	if err != nil || report.Summary == "ready" {
+		t.Fatalf("nonexistent invocation reported ready: %+v %v", report, err)
+	}
+	if _, err := os.Stat(filepath.Join(source, "missing.exe")); !os.IsNotExist(err) {
+		t.Fatal("detection created an executable")
+	}
 }
 
 type noFiles struct{}

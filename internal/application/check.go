@@ -106,6 +106,11 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 		}
 	}
 	bindings := map[string]project.Binding{}
+	for id := range requirements {
+		if binding, err := repo.Binding(ctx, string(req.ProjectID), id); err == nil && binding.Kind == "runtime" {
+			bindings[id] = binding
+		}
+	}
 	for key := range bindingKeys {
 		binding, err := repo.Binding(ctx, string(req.ProjectID), key)
 		item := check.Item{RequirementID: "binding:" + key, Status: check.Satisfied, Evidence: []check.Evidence{}, Reasons: []check.Reason{}, Repairs: []check.RepairStep{}}
@@ -121,7 +126,7 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 		report.Items = append(report.Items, check.Item{RequirementID: "workspace", Status: check.BindingRequired, Reasons: []check.Reason{{Code: "WORKSPACE_REBIND_REQUIRED", Message: "Confirm relocation and bind target resources again."}}})
 	}
 	ids := make([]string, 0, len(requirements))
-	inspection, inspectionErr := s.files.Inspect(ctx, ports.InspectionRequest{Document: view.Document, Bindings: bindings, WorkspaceRoot: repo.Info().Root, Revision: view.Revision})
+	inspection, inspectionErr := s.files.Inspect(ctx, ports.InspectionRequest{Document: view.Document, Bindings: bindings, WorkspaceRoot: repo.Info().Root, Revision: view.Revision, UnitIDs: units})
 	if inspectionErr != nil {
 		report.Items = append(report.Items, check.Item{RequirementID: "source", Status: check.Unknown, Reasons: []check.Reason{{Code: "SOURCE_INSPECTION_FAILED"}}})
 	} else {

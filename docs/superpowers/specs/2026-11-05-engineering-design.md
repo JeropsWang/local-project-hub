@@ -71,6 +71,8 @@ SQLite 使用 database/sql，驱动基线为 modernc.org/sqlite，实际依赖�
 
 脚本与配置资源保存为不可变的版本文件：先写临时目录、校验、原子改名，再在事务中登记。事务失败只留下可识别的未引用文件，之后清理本工具创建的残留；不能反向删除原始绑定目录。程序恢复时依据 journal 核对，不猜测已完成。
 
+实现阶段本机数据库版本为2：版本文件的journal增加随机owner_token，目录内保存匹配归属标记；恢复清理须同时校验，journal中的尝试记录本身不授予删除已有目录的权限。旧本机数据库版本1仅在无活动任务/运行且恢复journal为空时事务升级；旧journal没有可靠归属时保留文件并要求人工恢复。便携配置格式仍为1.0。
+
 密钥值不存入便携 JSON、命令参数或普通日志。本机库只存 secret_ref；密文使用当前 Windows 用户的保护存储，迁移后重新配置。普通检测不解密密钥；仅检查必需引用是否具备，实际执行时才在内存中解析。进程输出采用已知敏感值和规则脱敏，不能宣称能自动识别所有未知敏感文本。
 
 ## 核心类型与边界
@@ -152,6 +154,8 @@ LogService.Read(ctx context.Context, query LogQuery) (LogPage, error)
 InitWorkspaceRequest 为 root、name。RegisterProjectRequest 为 document、bindings、includedFiles；SaveProjectRequest 增加 ExpectedRevision。CheckRequest 为 ProfileRef 和 enabledFeatureIds。ProjectQuery 为 group、search、offset、limit，limit 1—100。ProjectView 至少返回 document、revision、checkSummary、runSummary；不返回 secret 值。
 
 enabledFeatureIds如提供，须与该revision中已保存profile的featureIds一致；变更可选功能先保存新revision，再检测/准备/启动，避免检测与启动使用两套输入。只读文件指纹覆盖显式声明的输入，不冒充整个Git工作树干净的证明；可能含秘密的配置默认仅检查存在性，未核对的期望hash保持unknown。
+
+命令检查包括所选运行单元的工作目录、绑定执行文件和系统工具存在性。Python静态requires-python参与交集；已知依赖文件缺少足够解释器元数据时报告unknown，不从依赖名称猜最低版本，也不运行setup.py或项目代码探测。
 
 OperationPlan 为 id、kind、workspaceId、ProfileRef（适用时）、fingerprint、steps、requiredBindings、warnings、createdAt。步骤记录 effect、cancelPolicy、输入指纹和影响资源，不能把后端命令解释权交给前端。
 

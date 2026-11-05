@@ -24,6 +24,14 @@ func inspectConstraints(ctx context.Context, req ports.InspectionRequest, result
 	for _, requirement := range req.Document.Requirements {
 		relevant[requirement.Component] = true
 	}
+	if req.UnitIDs != nil {
+		relevant = map[string]bool{}
+		for _, id := range req.UnitIDs {
+			for _, key := range req.Document.Units[id].RequirementIDs {
+				relevant[req.Document.Requirements[key].Component] = true
+			}
+		}
+	}
 	bindingKeys := make([]string, 0, len(req.Bindings))
 	for key := range req.Bindings {
 		bindingKeys = append(bindingKeys, key)
@@ -36,6 +44,9 @@ func inspectConstraints(ctx context.Context, req ports.InspectionRequest, result
 		}
 		source := bindingKey == "source"
 		names := map[string]bool{"package.json": true, "package-lock.json": true, "go.mod": true, "go.work": true, "pom.xml": true}
+		for _, name := range []string{"pyproject.toml", "uv.lock", "poetry.lock", "PKG-INFO", "requirements.txt"} {
+			names[name] = true
+		}
 		for _, file := range req.Document.Files {
 			if file.Path != nil && file.Path.Binding == bindingKey {
 				if file.Role == "source" {
@@ -43,6 +54,9 @@ func inspectConstraints(ctx context.Context, req ports.InspectionRequest, result
 				}
 				switch filepath.Base(file.Path.RelativePath) {
 				case "package.json", "package-lock.json", "go.mod", "go.work", "pom.xml":
+					names[file.Path.RelativePath] = true
+				}
+				if file.Required && isPythonManifest(filepath.Base(file.Path.RelativePath)) {
 					names[file.Path.RelativePath] = true
 				}
 			}
@@ -74,6 +88,9 @@ func inspectConstraints(ctx context.Context, req ports.InspectionRequest, result
 			if base == "pom.xml" && !relevant["java"] {
 				continue
 			}
+			if isPythonManifest(base) && !relevant["python"] {
+				continue
+			}
 			data, err := readManifest(anchor, name, total)
 			if os.IsNotExist(err) {
 				continue
@@ -86,7 +103,11 @@ func inspectConstraints(ctx context.Context, req ports.InspectionRequest, result
 			_, _ = io.WriteString(fingerprint, bindingKey+":"+name+":"+hex.EncodeToString(digest[:])+";")
 			constraints, err := parseManifest(base, data)
 			if err != nil {
-				appendMetadataIssue(result, name, "METADATA_FORMAT_UNSUPPORTED")
+				code := "METADATA_FORMAT_UNSUPPORTED"
+				if isPythonManifest(base) {
+					code = "PYTHON_METADATA_UNVERIFIED"
+				}
+				appendMetadataIssue(result, name, code)
 				continue
 			}
 			for _, constraint := range constraints {
@@ -162,6 +183,9 @@ type engineDeclaration struct {
 }
 
 func parseManifest(name string, data []byte) ([]ports.MetadataConstraint, error) {
+	if isPythonManifest(name) {
+		return parsePythonManifest(name, data)
+	}
 	result := []ports.MetadataConstraint{}
 	addEngines := func(engine engineDeclaration) {
 		if !appliesTo(engine.OS, "win32") || !appliesTo(engine.CPU, "x64") {

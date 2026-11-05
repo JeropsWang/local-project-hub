@@ -13,6 +13,7 @@ type InspectionRequest struct {
 	Bindings      map[string]project.Binding
 	WorkspaceRoot string
 	Revision      int32
+	UnitIDs       []string
 }
 
 // SourceInspection fingerprints declared inputs without certifying a clean working tree.

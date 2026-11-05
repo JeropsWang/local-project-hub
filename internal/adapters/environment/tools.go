@@ -93,10 +93,22 @@ func parseVersion(tool, text, locator string) (version, architecture, abi string
 		}
 	}
 	if tool == "java" {
+		// Settings include class.version (e.g. 55.0 for Java 11), which is not
+		// the JVM version. Prefer the exact property and only then a version banner.
+		version = ""
 		for _, line := range strings.Split(text, "\n") {
 			key, value, ok := strings.Cut(line, "=")
+			if ok && strings.TrimSpace(key) == "java.version" {
+				version = strings.TrimSpace(value)
+			}
 			if ok && strings.TrimSpace(key) == "os.arch" {
 				architecture = normalizeArch(strings.TrimSpace(value))
+			}
+		}
+		if version == "" {
+			banner := regexp.MustCompile(`(?m)^(?:openjdk|java)(?: version)?\s+"?([0-9][0-9A-Za-z._+\-]*)`).FindStringSubmatch(text)
+			if banner != nil {
+				version = banner[1]
 			}
 		}
 	}

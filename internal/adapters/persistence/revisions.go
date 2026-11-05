@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -50,17 +51,25 @@ func (s *Store) Save(ctx context.Context, doc project.Document, expected int32, 
 func (s *Store) writeRevision(ctx context.Context, doc project.Document, previous int32, data []byte, bindings []project.Binding, files map[string][]byte) (project.Snapshot, error) {
 	revision := previous + 1
 	relative := filesystem.RevisionPath(doc.ProjectID, revision)
-	if _, err := s.db.ExecContext(ctx, "INSERT INTO revision_journal VALUES(?,?,?)", doc.ProjectID, revision, relative); err != nil {
+	var nonce [32]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return project.Snapshot{}, err
+	}
+	owner := hex.EncodeToString(nonce[:])
+	if _, err := s.db.ExecContext(ctx, "INSERT INTO revision_journal VALUES(?,?,?,?)", doc.ProjectID, revision, relative, owner); err != nil {
 		return project.Snapshot{}, err
 	}
 	files, err := s.resolveFiles(ctx, doc, previous, files)
+	var publication filesystem.RevisionPublication
 	if err == nil {
-		err = s.dir.WriteRevision(doc, revision, 0, files)
+		publication, err = s.dir.WriteRevision(doc, revision, owner, files)
 	}
 	if err != nil {
-		// No revision was published to SQLite; the journal proves ownership of
-		// this attempt and confines cleanup to computed manager directories.
-		_ = s.dir.RemoveRevision(doc.ProjectID, revision)
+		// The journal records intent, not ownership of a preexisting directory.
+		// Only the publication result proves which staging path this call created.
+		if cleanupErr := s.dir.DiscardPublication(publication); cleanupErr != nil {
+			return project.Snapshot{}, cleanupErr
+		}
 		_, _ = s.db.ExecContext(ctx, "DELETE FROM revision_journal WHERE project_id=? AND revision=?", doc.ProjectID, revision)
 		return project.Snapshot{}, err
 	}
@@ -154,7 +163,7 @@ func (s *Store) resolveFiles(ctx context.Context, doc project.Document, previous
 }
 
 func (s *Store) recoverRevisions(ctx context.Context) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT project_id,revision,relative_path FROM revision_journal")
+	rows, err := s.db.QueryContext(ctx, "SELECT project_id,revision,relative_path,owner_token FROM revision_journal")
 	if err != nil {
 		return err
 	}
@@ -162,11 +171,12 @@ func (s *Store) recoverRevisions(ctx context.Context) error {
 		id       string
 		revision int32
 		relative string
+		owner    string
 	}
 	entries := []pending{}
 	for rows.Next() {
 		var entry pending
-		if err := rows.Scan(&entry.id, &entry.revision, &entry.relative); err != nil {
+		if err := rows.Scan(&entry.id, &entry.revision, &entry.relative, &entry.owner); err != nil {
 			rows.Close()
 			return err
 		}
@@ -186,7 +196,7 @@ func (s *Store) recoverRevisions(ctx context.Context) error {
 			return err
 		}
 		if !exists {
-			if err := s.dir.RemoveRevision(entry.id, entry.revision); err != nil {
+			if err := s.dir.RemoveOwnedRevision(entry.id, entry.revision, entry.owner); err != nil {
 				return err
 			}
 		}

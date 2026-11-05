@@ -77,10 +77,10 @@ func (f factory) Initialize(ctx context.Context, root, name string) (ports.Repos
 		return nil, err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, schemaV1); err != nil {
+	if _, err := tx.ExecContext(ctx, schemaCurrent); err != nil {
 		return nil, err
 	}
-	if _, err := tx.ExecContext(ctx, "INSERT INTO workspace_meta VALUES(?,1,?)", identity.WorkspaceID, dir.Path); err != nil {
+	if _, err := tx.ExecContext(ctx, "INSERT INTO workspace_meta VALUES(?,?,?)", identity.WorkspaceID, currentDBVersion, dir.Path); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -90,7 +90,7 @@ func (f factory) Initialize(ctx context.Context, root, name string) (ports.Repos
 		return nil, err
 	}
 	success = true
-	return &Store{db: db, dir: dir, info: workspace.View{WorkspaceID: identity.WorkspaceID, Name: identity.Name, Root: dir.Path, State: "ready", DBSchemaVersion: 1}}, nil
+	return &Store{db: db, dir: dir, info: workspace.View{WorkspaceID: identity.WorkspaceID, Name: identity.Name, Root: dir.Path, State: "ready", DBSchemaVersion: currentDBVersion}}, nil
 }
 
 func (f factory) Open(ctx context.Context, root string) (ports.Repository, error) {
@@ -126,12 +126,13 @@ func (f factory) Open(ctx context.Context, root string) (ports.Repository, error
 	if err := db.QueryRowContext(ctx, "SELECT workspace_id,db_schema_version,last_bound_root FROM workspace_meta").Scan(&id, &version, &lastRoot); err != nil {
 		return nil, problem.New("WORKSPACE_DATABASE_INVALID", "")
 	}
-	if version != 1 {
-		return nil, problem.New("WORKSPACE_VERSION_UNSUPPORTED", "")
-	}
 	if id != identity.WorkspaceID {
 		return nil, problem.New("WORKSPACE_IDENTITY_MISMATCH", "")
 	}
+	if err := upgradeDatabase(ctx, db, version); err != nil {
+		return nil, err
+	}
+	version = currentDBVersion
 	state := "ready"
 	if !strings.EqualFold(filepath.Clean(lastRoot), dir.Path) {
 		state = "rebind-required"
@@ -160,7 +161,7 @@ func connect(path string) (*sql.DB, error) {
 // HasActive prevents workspace switches from detaching managed runs or mutating tasks.
 func (s *Store) HasActive(ctx context.Context) (bool, error) {
 	var active bool
-	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM runs WHERE state NOT IN ('stopped','failed-start')) OR EXISTS(SELECT 1 FROM tasks WHERE state IN ('queued','running','waiting-user','cancel-requested'))`).Scan(&active)
+	err := s.db.QueryRowContext(ctx, activeStateQuery).Scan(&active)
 	return active, err
 }
 
