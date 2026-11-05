@@ -33,6 +33,7 @@
 - [工程约定与分层建议](docs/engineering-conventions.md)
 - [仓库开发约定](AGENTS.md)
 - [技术选型与比较](docs/technology-selection.md)
+- [Windows 兼容与配置迁移设计草案](docs/superpowers/specs/2026-11-05-compatibility-design.md)
 
 ## 建议方向，待讨论确认
 

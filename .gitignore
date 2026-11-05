@@ -18,6 +18,7 @@ runtime/
 logs/
 exports/
 backups/
+audit.local/
 data/
 *.log
 *.db

@@ -29,8 +29,12 @@
 17. 默认采用专业中性风格，允许个性化封面，并加入动态排版、视差效果和颗粒质感。
 18. 源码需要有效注释、统一格式化和正常换行；页面、CSS、路由、服务和业务逻辑分层组织。
 19. 核心语言与桌面框架选用 Go + Wails；前端技术由用户授权助手结合实际需要选择。
+20. 项目技术类别包括 Vue、React、Next.js、Go、Python、Java、PostgreSQL、MySQL 等；以指定项目核查确定兼容方案。
+21. typing-tracker 与 WeChatBot 以用户 GitHub 仓库为准，PersonWeb 以本地为准。默认分支、正式发布与本地运行实例应分别识别。
 
 工作空间和环境处理的详细讨论记录见 [环境文档](environments.md)。已选择 Go + Wails；前端由助手选用 React + TypeScript + Vite，详情见 [技术选型](technology-selection.md)。已确认的视觉方向见 [视觉文档](visual-direction.md)，具体布局、配色和效果尚待原型确认；软件工程约定见 [分层文档](engineering-conventions.md) 和 [AGENTS.md](../AGENTS.md)。
+
+指定项目核查形成的 [兼容设计草案](superpowers/specs/2026-11-05-compatibility-design.md) 区分静态声明、依赖元数据、环境观察和实际验证。本机详细路径与容器清单仅保存在被 Git 忽略的审查报告。
 
 ## 建议的资源关系
 
@@ -91,7 +95,7 @@
 
 - 已选技术栈的具体依赖版本、接口契约和数据模型。
 - 本地 Docker 运行在 Docker Desktop、WSL、其他环境还是多种环境。
-- 本机项目的语言、启动方式和运行环境版本。
+- 兼容草案的首版范围确认，尚缺样本的 Java、MySQL 等工程的具体声明与运行要求。
 - 一键导出的默认内容、离线运行要求、Windows 版本与架构范围。
 - 异常退出和系统重启后的恢复检查策略；关闭窗口继续运行、明确退出时安全停止项目已确认。
 - 首版必要的容器维护操作。
