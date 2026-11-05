@@ -13,17 +13,17 @@ import (
 	"github.com/JeropsWang/local-project-hub/internal/ports"
 )
 
-type nativeToolRunner struct{}
+type nativeToolRunner struct{ waitSafe bool }
 
 // NewToolRunner contains CLI/plugin subprocesses in a disposable Job. Business
 // projects use NativeProcessAdapter's separate non-killing Job policy.
 func NewToolRunner() ports.ToolRunner { return nativeToolRunner{} }
 
-func (nativeToolRunner) RunTool(ctx context.Context, spec ports.ProcessCommand, stdout, stderr io.Writer) error {
+func (r nativeToolRunner) RunTool(ctx context.Context, spec ports.ProcessCommand, stdout, stderr io.Writer) error {
 	if err := validateProcessCommand(spec); err != nil {
 		return err
 	}
-	if _, ok := ctx.Deadline(); !ok {
+	if _, ok := ctx.Deadline(); !ok && !r.waitSafe {
 		bounded, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
 		ctx = bounded
@@ -31,11 +31,24 @@ func (nativeToolRunner) RunTool(ctx context.Context, spec ports.ProcessCommand, 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	job, err := newDisposableJob()
+	var job windows.Handle
+	var tracker *jobTracker
+	var err error
+	if r.waitSafe {
+		// Saving/migration work is not a disposable CLI. Caller cancellation and
+		// timeout cannot turn into a Job kill while this effect is in progress.
+		ctx = context.WithoutCancel(ctx)
+		job, tracker, err = newBusinessJob()
+	} else {
+		job, err = newDisposableJob()
+	}
 	if err != nil {
 		return err
 	}
 	defer windows.CloseHandle(job)
+	if tracker != nil {
+		defer tracker.close()
+	}
 	command := exec.Command(spec.Executable, spec.Args...)
 	command.Dir = spec.CWD
 	command.Env = []string{}
@@ -44,6 +57,9 @@ func (nativeToolRunner) RunTool(ctx context.Context, spec ports.ProcessCommand, 
 	}
 	command.Stdout, command.Stderr = stdout, stderr
 	command.WaitDelay = 2 * time.Second
+	if r.waitSafe {
+		command.WaitDelay = 0
+	}
 	command.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NO_WINDOW,
@@ -77,17 +93,36 @@ func (nativeToolRunner) RunTool(ctx context.Context, spec ports.ProcessCommand, 
 		<-done
 		return ctx.Err()
 	}
-	if err == nil {
+	if err == nil || r.waitSafe {
 		// Root exit can precede plugin/console-host exit. Wait for the owned
 		// controller group to converge before calling an external effect complete.
 		ticker := time.NewTicker(20 * time.Millisecond)
 		defer ticker.Stop()
 		for {
-			active, _, queryErr := businessJobProcesses(job)
+			active, total, queryErr := businessJobProcesses(job)
 			if queryErr != nil {
+				if r.waitSafe {
+					return problem.New("UNIT_STATE_UNCERTAIN", "")
+				}
 				return queryErr
 			}
 			if active == 0 {
+				if r.waitSafe {
+					deadline := time.Now().Add(time.Second)
+					for {
+						verified, failed, unknown := tracker.exitStatus(total)
+						if failed {
+							return problem.New("UNIT_EXIT_FAILED", "")
+						}
+						if verified {
+							return err
+						}
+						if unknown || time.Now().After(deadline) {
+							return problem.New("UNIT_EXIT_UNVERIFIED", "")
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+				}
 				return nil
 			}
 			select {

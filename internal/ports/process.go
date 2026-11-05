@@ -65,6 +65,8 @@ type StopResult struct {
 }
 
 // ProcessAdapter never implicitly terminates a running business process on timeout.
+// Start returning an empty identity with an error guarantees that no business
+// process was resumed. Uncertain effects must return their acquired identity.
 type ProcessAdapter interface {
 	Start(context.Context, ProcessSpec) (run.Identity, error)
 	Stop(context.Context, run.Identity, StopSpec) (StopResult, error)

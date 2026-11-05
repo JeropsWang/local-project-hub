@@ -5,6 +5,7 @@ import (
 	"github.com/JeropsWang/local-project-hub/internal/domain/check"
 	"github.com/JeropsWang/local-project-hub/internal/domain/preparation"
 	"github.com/JeropsWang/local-project-hub/internal/domain/project"
+	"github.com/JeropsWang/local-project-hub/internal/domain/run"
 	"time"
 )
 
@@ -71,6 +72,8 @@ type Plan struct {
 	RequiredBindings   []string           `json:"requiredBindings"`
 	Warnings           []string           `json:"warnings"`
 	ResourceIDs        []string           `json:"resourceIds"`
+	RunIDs             []string           `json:"runIds,omitempty"`
+	RunSnapshot        *run.Snapshot      `json:"runSnapshot,omitempty"`
 	SourceConstraints  []check.Constraint `json:"sourceConstraints"`
 	ProjectPreparation *preparation.Plan  `json:"projectPreparation,omitempty"`
 	CreatedAt          time.Time          `json:"createdAt"`

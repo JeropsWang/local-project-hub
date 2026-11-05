@@ -103,6 +103,41 @@ func stopRequest() ports.StopSpec {
 	return ports.StopSpec{OperationID: op, Timeout: 300 * time.Millisecond}
 }
 
+func TestOwnedChildPipeServerCanStopAfterSupervisorExit(t *testing.T) {
+	for _, mode := range []string{"supervisor", "supervisor-exit"} {
+		t.Run(mode, func(t *testing.T) {
+			adapter, spec, _ := processFixture(t, mode)
+			instance, err := adapter.Start(context.Background(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitFile(t, filepath.Join(spec.Command.CWD, "ready"))
+			if mode == "supervisor-exit" {
+				deadline := time.Now().Add(2 * time.Second)
+				for time.Now().Before(deadline) {
+					state, err := adapter.Inspect(context.Background(), instance)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !state.RootRunning {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
+			request := stopRequest()
+			request.Timeout = 2 * time.Second
+			result, err := adapter.Stop(context.Background(), instance, request)
+			if err != nil || !result.Graceful {
+				t.Fatalf("owned child could not stop: %+v %v", result, err)
+			}
+			if _, err = os.Stat(filepath.Join(spec.Command.CWD, "saved.txt")); err != nil {
+				t.Fatal("child did not save", err)
+			}
+		})
+	}
+}
+
 func TestPIDReuseAndParentExitAreNotCompletion(t *testing.T) {
 	adapter, spec, _ := processFixture(t, "normal")
 	instance, err := adapter.Start(context.Background(), spec)

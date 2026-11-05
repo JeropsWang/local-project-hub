@@ -25,6 +25,25 @@ func main() {
 	exitCode := flag.Int("exit-code", 0, "synthetic child exit code")
 	signal := flag.String("signal", "", "immutable snapshot used by command stop")
 	flag.Parse()
+	if *mode == "supervisor" || *mode == "supervisor-exit" {
+		exe, _ := os.Executable()
+		child := exec.Command(exe, "--mode", "normal")
+		child.Env = os.Environ()
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+		if err := child.Start(); err != nil {
+			os.Exit(2)
+		}
+		if *mode == "supervisor-exit" {
+			// Give the tracker time to retain both original members before the
+			// supervisor exits. The real server is still the owned child.
+			time.Sleep(150 * time.Millisecond)
+			return
+		}
+		if err := child.Wait(); err != nil {
+			os.Exit(2)
+		}
+		return
+	}
 	if *signal != "" {
 		data, err := os.ReadFile(*signal)
 		if err != nil {

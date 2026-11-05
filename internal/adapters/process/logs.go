@@ -35,6 +35,8 @@ type RunLog struct {
 	secrets      []string
 	writers      []*redactingLogWriter
 	closed       bool
+	workspace    string
+	runID        string
 }
 
 // NewRunLog creates a fresh run log with 10MiB segments and three retained segments.
@@ -73,7 +75,23 @@ func newRunLog(workspace, runID string, secrets []string, segmentBytes int64, se
 		root.Close()
 		return nil, err
 	}
-	return &RunLog{root: root, file: file, segmentBytes: segmentBytes, segments: segments, secrets: clean}, nil
+	return &RunLog{
+		root:         root,
+		file:         file,
+		segmentBytes: segmentBytes,
+		segments:     segments,
+		secrets:      clean,
+		workspace:    workspace,
+		runID:        runID,
+	}, nil
+}
+
+// Read serializes live reads with append/rotation. Offline ReadRunLog alone cannot
+// prevent a segment from moving between its stat and open operations.
+func (l *RunLog) Read(after string, limit int) (run.LogPage, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return ReadRunLog(l.workspace, l.runID, after, limit)
 }
 
 // Writer must be closed to flush the last partial line. RunLog.Close also closes

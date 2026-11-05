@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -43,7 +44,7 @@ func (a *NativeProcessAdapter) Stop(
 	}
 	instance.mu.Lock()
 	if instance.operationDone == nil {
-		if !initial.RootRunning || spec.WaitOnly {
+		if initial.ActiveProcesses == 0 || spec.WaitOnly {
 			instance.mu.Unlock()
 			return stopObservation(initial, ControlOutcome{}, "STOP_NOT_INITIATED"), nil
 		}
@@ -136,6 +137,9 @@ func (a *NativeProcessAdapter) beginStop(instance *nativeInstance, operationID s
 		go func() {
 			defer cancel()
 			client := NewControlClient()
+			client.dial = func(ctx context.Context, _ run.Identity) (net.Conn, error) {
+				return dialOwnedControlPipe(ctx, instance)
+			}
 			client.observe = func(outcome ControlOutcome) {
 				instance.mu.Lock()
 				instance.controlResult = outcome

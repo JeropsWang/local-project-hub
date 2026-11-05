@@ -14,6 +14,7 @@ import (
 	"github.com/JeropsWang/local-project-hub/internal/domain/identity"
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 	"github.com/JeropsWang/local-project-hub/internal/domain/project"
+	"github.com/JeropsWang/local-project-hub/internal/domain/run"
 	"github.com/JeropsWang/local-project-hub/internal/domain/task"
 	"github.com/JeropsWang/local-project-hub/internal/ports"
 )
@@ -24,10 +25,16 @@ type PlanService struct {
 	checks          *CheckService
 	runtimeProvider ports.RuntimeProvider
 	projectPreparer ports.ProjectPreparer
+	runCompiler     ports.RunCompiler
 }
 
 // PlanOption supplies backend capabilities; no option can be read from project JSON.
 type PlanOption func(*PlanService)
+
+// WithRunCompiler freezes checked launch/stop commands before preview publication.
+func WithRunCompiler(compiler ports.RunCompiler) PlanOption {
+	return func(s *PlanService) { s.runCompiler = compiler }
+}
 
 // WithRuntimeProvider pins concrete supplies while preparing a preview.
 func WithRuntimeProvider(provider ports.RuntimeProvider) PlanOption {
@@ -60,7 +67,7 @@ func (s *PlanService) BuildStart(ctx context.Context, ref ProfileRef) (Operation
 
 // BuildStop builds a graceful stop plan. Run snapshots replace editor data at execution.
 func (s *PlanService) BuildStop(ctx context.Context, ref ProfileRef) (OperationPlan, error) {
-	return s.build(ctx, task.Stop, ref)
+	return s.buildRunningStop(ctx, ref)
 }
 
 func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef) (OperationPlan, error) {
@@ -109,6 +116,27 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 		CreatedAt:        time.Now().UTC(),
 	}
 	plan.SourceConstraints = report.Constraints
+	if kind == task.Start {
+		if s.runCompiler == nil {
+			return OperationPlan{}, problem.New("RUN_COMPILER_UNAVAILABLE", "")
+		}
+		snapshot, err := s.compileRun(ctx, repo, ref, doc, ordered, input.Bindings)
+		if err != nil {
+			return OperationPlan{}, err
+		}
+		snapshot.ID = id
+		snapshot.CreatedAt = plan.CreatedAt
+		for index := range snapshot.Units {
+			if snapshot.Units[index].Kind == "process" || snapshot.Units[index].Kind == "task" {
+				instanceID, err := identity.NewUUID()
+				if err != nil {
+					return OperationPlan{}, err
+				}
+				snapshot.Units[index].InstanceID = instanceID
+			}
+		}
+		plan.RunSnapshot = &snapshot
+	}
 	resources := map[string]bool{}
 	requirements := map[string]bool{}
 	for _, unitID := range ordered {
@@ -315,12 +343,53 @@ func (s *PlanService) input(ctx context.Context, ref ProfileRef) (planInput, pro
 
 // validate compares fresh machine/configuration inputs; plan timestamps are deliberately excluded.
 func (s *PlanService) validate(ctx context.Context, plan task.Plan) error {
+	if plan.Kind == task.Start && plan.RunSnapshot != nil {
+		s.workspaces.mu.RLock()
+		repo := s.workspaces.current
+		rollback := false
+		if store, ok := repo.(ports.RunRepository); ok {
+			if record, err := store.Run(ctx, plan.RunSnapshot.ID); err == nil && record.FailureCode != "" {
+				rollback = true
+			}
+		}
+		s.workspaces.mu.RUnlock()
+		if rollback {
+			stopPlan := plan
+			stopPlan.Kind = task.Stop
+			stopPlan.RunIDs = []string{plan.RunSnapshot.ID}
+			stopPlan.Fingerprint = snapshotFingerprint([]run.Snapshot{*plan.RunSnapshot})
+			return s.validateLifecyclePlan(ctx, stopPlan)
+		}
+	}
+	if plan.Kind == task.Stop || plan.Kind == task.Exit {
+		return s.validateLifecyclePlan(ctx, plan)
+	}
 	if plan.ProfileRef == nil {
 		return problem.New("PLAN_REFERENCE_REQUIRED", "")
 	}
 	input, doc, report, err := s.input(ctx, *plan.ProfileRef)
 	if err != nil || input.WorkspaceID != plan.WorkspaceID || input.Hash() != plan.Fingerprint {
 		return problem.New("PLAN_STALE", "")
+	}
+	if plan.Kind == task.Start {
+		if s.runCompiler == nil || plan.RunSnapshot == nil || report.Summary != "ready" {
+			return problem.New("PLAN_STALE", "")
+		}
+		ordered, err := project.Order(doc, string(plan.ProfileRef.ProfileID))
+		if err != nil {
+			return err
+		}
+		s.workspaces.mu.RLock()
+		repo := s.workspaces.current
+		if repo == nil {
+			s.workspaces.mu.RUnlock()
+			return problem.New("PLAN_STALE", "")
+		}
+		fresh, err := s.compileRun(ctx, repo, *plan.ProfileRef, doc, ordered, input.Bindings)
+		s.workspaces.mu.RUnlock()
+		if err != nil || compiledRunFingerprint(fresh) != compiledRunFingerprint(*plan.RunSnapshot) {
+			return problem.New("PLAN_STALE", "")
+		}
 	}
 	runtimePlans := map[string]ports.RuntimeInstallPlan{}
 	for _, step := range plan.Steps {

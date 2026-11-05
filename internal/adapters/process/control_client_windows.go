@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net"
 	"time"
+	"unsafe"
 
 	winio "github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
@@ -117,6 +118,43 @@ func (c *ControlClient) Exchange(
 }
 
 func dialControlPipe(ctx context.Context, instance run.Identity) (net.Conn, error) {
+	return dialVerifiedPipe(ctx, instance, func(pid uint32) error {
+		if pid != instance.PID {
+			return problem.New("INSTANCE_IDENTITY_MISMATCH", "")
+		}
+		process, err := openOriginalProcess(instance)
+		if err != nil {
+			return err
+		}
+		windows.CloseHandle(process)
+		return nil
+	})
+}
+
+// The native adapter may authenticate an owned child server. The pipe's actual
+// server is opened and checked against the retained original Job before sending
+// a token; process names, parent PID hints and portable IDs provide no authority.
+func dialOwnedControlPipe(ctx context.Context, instance *nativeInstance) (net.Conn, error) {
+	return dialVerifiedPipe(ctx, instance.identity, func(pid uint32) error {
+		handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.SYNCHRONIZE, false, pid)
+		if err != nil {
+			return problem.New("INSTANCE_IDENTITY_MISMATCH", "")
+		}
+		defer windows.CloseHandle(handle)
+		status, err := windows.WaitForSingleObject(handle, 0)
+		if err != nil || status != uint32(windows.WAIT_TIMEOUT) {
+			return problem.New("INSTANCE_IDENTITY_MISMATCH", "")
+		}
+		var belongs int32
+		ok, _, _ := isProcessInJob.Call(uintptr(handle), uintptr(instance.job), uintptr(unsafe.Pointer(&belongs)))
+		if ok == 0 || belongs == 0 {
+			return problem.New("INSTANCE_IDENTITY_MISMATCH", "")
+		}
+		return nil
+	})
+}
+
+func dialVerifiedPipe(ctx context.Context, instance run.Identity, verify func(uint32) error) (net.Conn, error) {
 	if !control.ValidIdentity(instance.ControlID) || instance.PID == 0 {
 		return nil, problem.New("INSTANCE_IDENTITY_INVALID", "")
 	}
@@ -126,17 +164,13 @@ func dialControlPipe(ctx context.Context, instance run.Identity) (net.Conn, erro
 	}
 	handle, ok := connection.(interface{ Fd() uintptr })
 	var serverPID uint32
-	if !ok || windows.GetNamedPipeServerProcessId(windows.Handle(handle.Fd()), &serverPID) != nil ||
-		serverPID != instance.PID {
+	if !ok || windows.GetNamedPipeServerProcessId(windows.Handle(handle.Fd()), &serverPID) != nil {
 		connection.Close()
 		return nil, problem.New("INSTANCE_IDENTITY_MISMATCH", "")
 	}
-	// Check the actual process identity before sending its runtime token.
-	process, err := openOriginalProcess(instance)
-	if err != nil {
+	if err := verify(serverPID); err != nil {
 		connection.Close()
 		return nil, err
 	}
-	windows.CloseHandle(process)
 	return connection, nil
 }

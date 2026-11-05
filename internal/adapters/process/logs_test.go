@@ -1,11 +1,47 @@
 package process
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestLiveLogReadsStayConsistentDuringRotation(t *testing.T) {
+	root := t.TempDir()
+	log, err := newRunLog(root, fixtureControlRun, nil, 512, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer log.Close()
+	writer := log.Writer("stdout")
+	done := make(chan error, 1)
+	go func() {
+		for index := 0; index < 400; index++ {
+			if _, err := fmt.Fprintf(writer, "line %03d payload\n", index); err != nil {
+				done <- err
+				return
+			}
+		}
+		done <- writer.Close()
+	}()
+	cursor := "0"
+	for index := 0; index < 400; index++ {
+		page, err := log.Read(cursor, 20)
+		if err != nil {
+			t.Fatal("rotation produced an invalid live page", err)
+		}
+		cursor = page.Next
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	page, err := log.Read(cursor, 2000)
+	if err != nil || page.Next != "400" {
+		t.Fatalf("final live cursor: %+v %v", page, err)
+	}
+}
 
 func TestRunLogRedactsSecretsAcrossWritesAndFinalTail(t *testing.T) {
 	root := t.TempDir()

@@ -13,6 +13,7 @@ type TaskRepository interface {
 	CreateTask(context.Context, task.Record) (task.Record, error)
 	Task(context.Context, task.ID) (task.Record, error)
 	QueuedTasks(context.Context) ([]task.Record, error)
+	PendingTasks(context.Context) ([]task.Record, error)
 	TransitionTask(context.Context, task.ID, string, task.State, *task.AppError, task.EventData) (task.Record, error)
 	AppendTaskEvent(context.Context, task.ID, task.EventData) (task.Record, error)
 	TaskEvents(context.Context, task.ID, string) ([]task.Event, error)

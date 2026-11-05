@@ -15,15 +15,17 @@ import (
 
 // TaskService runs a single mutation worker; waiting tasks return its execution slot.
 type TaskService struct {
-	workspaces *WorkspaceService
-	plans      *PlanService
-	executors  map[task.Kind]ports.TaskExecutor
-	wake       chan struct{}
-	stop       chan struct{}
-	done       chan struct{}
-	mu         sync.Mutex
-	recovered  map[string]bool
-	closed     bool
+	workspaces  *WorkspaceService
+	plans       *PlanService
+	executors   map[task.Kind]ports.TaskExecutor
+	wake        chan struct{}
+	stop        chan struct{}
+	done        chan struct{}
+	mu          sync.Mutex
+	recovered   map[string]bool
+	closed      bool
+	admissionMu sync.Mutex
+	exitID      task.ID
 }
 
 // NewTaskService creates one coordinator for the application. Construct it only once.
@@ -69,6 +71,12 @@ func (s *TaskService) Submit(ctx context.Context, req SubmitPlanRequest) (TaskVi
 	if req.RequestID == "" || len(req.RequestID) > 128 {
 		return TaskView{}, problem.New("REQUEST_ID_INVALID", "")
 	}
+	s.admissionMu.Lock()
+	exiting := s.exitID != ""
+	s.admissionMu.Unlock()
+	if exiting {
+		return TaskView{}, problem.New("EXIT_IN_PROGRESS", "")
+	}
 	s.workspaces.mu.RLock()
 	repo := s.workspaces.current
 	if repo == nil {
@@ -105,6 +113,9 @@ func (s *TaskService) Submit(ctx context.Context, req SubmitPlanRequest) (TaskVi
 	if plan.Fingerprint != req.Fingerprint {
 		return TaskView{}, problem.New("PLAN_STALE", "")
 	}
+	if plan.Kind == task.Exit {
+		return TaskView{}, problem.New("EXIT_COORDINATOR_REQUIRED", "")
+	}
 	if err := s.plans.validate(ctx, plan); err != nil {
 		return TaskView{}, err
 	}
@@ -114,6 +125,11 @@ func (s *TaskService) Submit(ctx context.Context, req SubmitPlanRequest) (TaskVi
 	}
 	s.workspaces.mu.RLock()
 	defer s.workspaces.mu.RUnlock()
+	s.admissionMu.Lock()
+	defer s.admissionMu.Unlock()
+	if s.exitID != "" {
+		return TaskView{}, problem.New("EXIT_IN_PROGRESS", "")
+	}
 	if s.workspaces.current != repo || repo.Info().State != "ready" {
 		return TaskView{}, problem.New("PLAN_STALE", "")
 	}
@@ -188,6 +204,9 @@ func (s *TaskService) Cancel(ctx context.Context, id TaskID) (TaskView, error) {
 		if task.Terminal(record.View.State) || record.View.State == task.CancelRequested {
 			return record.View, nil
 		}
+		if record.View.Kind == task.Exit {
+			return TaskView{}, problem.New("EXIT_RESOLUTION_REQUIRED", "")
+		}
 		to := task.CancelRequested
 		if record.View.State == task.Queued || record.View.State == task.WaitingUser {
 			if record.View.Kind == task.Exit && record.View.State == task.WaitingUser {
@@ -228,6 +247,11 @@ func (s *TaskService) Resolve(ctx context.Context, req ResolveTaskRequest) (Task
 	if err != nil {
 		return TaskView{}, err
 	}
+	s.admissionMu.Lock()
+	defer s.admissionMu.Unlock()
+	if s.exitID != "" && req.TaskID != s.exitID {
+		return TaskView{}, problem.New("EXIT_IN_PROGRESS", "")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, err := store.Task(ctx, req.TaskID)
@@ -260,6 +284,9 @@ func (s *TaskService) Resolve(ctx context.Context, req ResolveTaskRequest) (Task
 		task.EventData{Code: "TASK_RESOLVED"},
 	)
 	if err == nil {
+		if req.Action == "abort-exit" {
+			s.exitID = ""
+		}
 		s.notify()
 	}
 	return record.View, err
@@ -302,7 +329,11 @@ func (s *TaskService) drain() {
 		}
 		var selected *task.Record
 		var selectedPlan task.Plan
+		s.admissionMu.Lock()
 		for _, candidate := range candidates {
+			if s.exitID != "" && candidate.View.ID != s.exitID {
+				continue
+			}
 			plan, err := store.LoadPlan(context.Background(), candidate.PlanID)
 			if err != nil {
 				s.finish(store, candidate.View.ID, task.Failed, safeTaskError(err))
@@ -328,6 +359,7 @@ func (s *TaskService) drain() {
 			selectedPlan = plan
 			break
 		}
+		s.admissionMu.Unlock()
 		s.workspaces.mu.RUnlock()
 		if selected == nil {
 			return

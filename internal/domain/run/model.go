@@ -28,6 +28,8 @@ type Snapshot struct {
 	InputHashes  map[string]string `json:"inputHashes"`
 	Acquisitions []Acquisition     `json:"acquisitions"`
 	CreatedAt    time.Time         `json:"createdAt"`
+	Units        []UnitPlan        `json:"units"`
+	FileNames    map[string]string `json:"fileNames"`
 }
 
 // Acquisition distinguishes newly controlled resources from preexisting references.
@@ -37,4 +39,6 @@ type Acquisition struct {
 	Identity      Identity `json:"identity"`
 	NewlyAcquired bool     `json:"newlyAcquired"`
 	ControlGrant  string   `json:"controlGrant,omitempty"`
+	Phase         string   `json:"phase"`
+	OperationID   string   `json:"operationId,omitempty"`
 }

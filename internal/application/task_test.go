@@ -68,12 +68,16 @@ func waitTask(
 	want task.State,
 ) application.TaskView {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	// Full-suite Windows filesystem/process tests compete for disk and antivirus
+	// scans. This is an observation deadline, not a product execution timeout.
+	deadline := time.Now().Add(10 * time.Second)
+	var last application.TaskView
 	for time.Now().Before(deadline) {
 		view, err := service.Get(context.Background(), id)
 		if err != nil {
 			t.Fatal(err)
 		}
+		last = view
 		if view.State == want {
 			return view
 		}
@@ -82,7 +86,7 @@ func waitTask(
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatalf("task did not reach %s", want)
+	t.Fatalf("task did not reach %s; last state=%s, error=%+v", want, last.State, last.Error)
 	return application.TaskView{}
 }
 

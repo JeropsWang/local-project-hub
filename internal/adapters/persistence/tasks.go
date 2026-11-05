@@ -86,7 +86,7 @@ func (s *Store) CreateTask(ctx context.Context, record task.Record) (task.Record
 	}
 	record.View.State = task.Queued
 	record.View.LastEventSeq = "1"
-	record.View.Cancelable = true
+	record.View.Cancelable = record.View.Kind != task.Exit
 	data, err := json.Marshal(record)
 	if err != nil {
 		return task.Record{}, err
@@ -161,6 +161,28 @@ func (s *Store) QueuedTasks(ctx context.Context) ([]task.Record, error) {
 }
 
 // TransitionTask compares the event cursor and validates the state edge transactionally.
+// PendingTasks includes waiting tasks, whose reservations must be folded into
+// shutdown rather than leaving the exit coordinator blocked behind an old task.
+func (s *Store) PendingTasks(ctx context.Context) ([]task.Record, error) {
+	rows, err := s.db.QueryContext(
+		ctx,
+		"SELECT payload FROM tasks WHERE state IN ('queued','running','waiting-user','cancel-requested') ORDER BY created_at,task_id",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []task.Record{}
+	for rows.Next() {
+		record, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, record)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) TransitionTask(
 	ctx context.Context,
 	id task.ID,
@@ -178,7 +200,7 @@ func (s *Store) TransitionTask(
 		}
 		record.View.State = to
 		record.View.Error = failure
-		record.View.Cancelable = !task.Terminal(to)
+		record.View.Cancelable = record.View.Kind != task.Exit && !task.Terminal(to)
 		return nil
 	}, event)
 }
