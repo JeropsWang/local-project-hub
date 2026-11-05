@@ -406,6 +406,69 @@ func TestQuitFailureCanResumeOrAbortWithoutDeadlock(t *testing.T) {
 
 type lifecycleControl struct{}
 
+type exitSafePointExecutor struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (e *exitSafePointExecutor) Execute(ctx context.Context, _ task.Plan, control ports.TaskControl) error {
+	close(e.entered)
+	<-e.release
+	return control.Checkpoint(ctx)
+}
+
+func TestExitCancelsQueueAndWaitsForSafePreparationPoint(t *testing.T) {
+	ws, _, _, doc := lifecycleFixture(t)
+	ctx := context.Background()
+	plans := NewPlanService(ws, NewCheckService(ws, &ownerProbe{}, environment.StaticInspector{}, nil))
+	prepare := &exitSafePointExecutor{entered: make(chan struct{}), release: make(chan struct{})}
+	tasks := NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Prepare: prepare})
+	t.Cleanup(func() { _ = tasks.Close(ctx) })
+	lifecycle := NewLifecycleService(ws, tasks, NewStopExecutor(ws, nil, nil))
+	plan, err := plans.BuildPrepare(
+		ctx,
+		project.Ref{ProjectID: project.ID(doc.ProjectID), ProfileID: "development", ExpectedRevision: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := tasks.Submit(
+		ctx,
+		SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "safe-first"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-prepare.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("preparation did not enter safe wait")
+	}
+	second, err := tasks.Submit(
+		ctx,
+		SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "safe-second"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, err := lifecycle.RequestExit(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view, err := tasks.Get(ctx, first.ID); err != nil || view.State != task.CancelRequested {
+		t.Fatal("active safe wait was interrupted", err)
+	}
+	if view, err := tasks.Get(ctx, second.ID); err != nil || view.State != task.Cancelled {
+		t.Fatal("queued preparation not cancelled", err)
+	}
+	if allowed, err := lifecycle.CanQuit(ctx); err != nil || allowed {
+		t.Fatal("quit before the preparation safe point", err)
+	}
+	close(prepare.release)
+	waitLifecycleTask(t, tasks, first.ID, task.Cancelled)
+	waitLifecycleTask(t, tasks, exit.ID, task.Succeeded)
+}
+
 type resumedLifecycleControl struct {
 	lifecycleControl
 	action string

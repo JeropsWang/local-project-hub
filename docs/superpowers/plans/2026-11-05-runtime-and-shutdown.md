@@ -220,7 +220,7 @@ Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
 以下是测试名及关键断言片段；夹具在列出的测试文件内构建，输入使用仓库脱敏示例，不依赖真实工程。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestRollbackOnlyNewAcquisitionsAndStopSharedLast(t *testing.T) {
@@ -238,21 +238,21 @@ func TestEditedConfigCannotChangeRunningStop(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证红灯**
+- [x] **Step 2: 验证红灯**
 
 Run: `go test ./internal/application ./tests/integration`
 Expected: FAIL，缺少下述接口或行为；不能因测试环境损坏而把失败当成有效红灯。
 
-- [ ] **Step 3: 实现本任务接口**
+- [x] **Step 3: 实现本任务接口**
 
 启动前核对环境、可验证停止策略与授权；拓扑启动，失败只回滚本次新获取资源。RunPlan冻结脚本字节/指纹与启停参数。退出关闭准入、取消排队任务、在安全点等待准备，倒序停止全部受管理运行和无人引用的受管公共资源。失败 waiting-user 保留运行；Resolve按设计恢复，abort-exit不重新启动已停止项目。全部成功才发允许退出事件。完整跑 go test ./...、go vet ./...；Windows合成进程可在临时目录真实启停，Docker默认用fake，另有明确 opt-in 临时专用栈测试，禁止操作用户已有容器。
 
-- [ ] **Step 4: 验证绿灯**
+- [x] **Step 4: 验证绿灯**
 
 Run: `go test ./internal/application ./tests/integration`
 Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 显式暂存本任务 Files 中的实现与测试，检查无本机数据后执行 `git commit -m "feat: coordinate full startup and safe manager exit"`。
 
