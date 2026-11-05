@@ -110,7 +110,7 @@ func (r *NativePreparationRunner) Run(ctx context.Context, request ports.Prepara
 		windows.CloseHandle(process)
 	}
 	if err == nil {
-		err = resumePreparationThread(uint32(cmd.Process.Pid))
+		err = resumeSuspendedThread(uint32(cmd.Process.Pid))
 	}
 	if err != nil {
 		// It is still the exact process handle we just created, never a discovered PID.
@@ -163,28 +163,6 @@ func newPreparationJob() (windows.Handle, error) {
 		return 0, err
 	}
 	return job, nil
-}
-
-func resumePreparationThread(pid uint32) error {
-	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
-	if err != nil {
-		return err
-	}
-	defer windows.CloseHandle(snapshot)
-	entry := windows.ThreadEntry32{Size: uint32(unsafe.Sizeof(windows.ThreadEntry32{}))}
-	for err = windows.Thread32First(snapshot, &entry); err == nil; err = windows.Thread32Next(snapshot, &entry) {
-		if entry.OwnerProcessID != pid {
-			continue
-		}
-		thread, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, entry.ThreadID)
-		if err != nil {
-			return err
-		}
-		_, err = windows.ResumeThread(thread)
-		windows.CloseHandle(thread)
-		return err
-	}
-	return problem.New("PREPARATION_THREAD_MISSING", "")
 }
 
 func privatePreparationEnvironment(request ports.PreparationCommand) []string {

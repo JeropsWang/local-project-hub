@@ -131,7 +131,7 @@ Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
 以下是测试名及关键断言片段；夹具在列出的测试文件内构建，输入使用仓库脱敏示例，不依赖真实工程。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestPIDReuseAndParentExitAreNotCompletion(t *testing.T) {
@@ -145,21 +145,21 @@ func TestStopUsesOriginalScriptAndRedactsLogs(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证红灯**
+- [x] **Step 2: 验证红灯**
 
 Run: `go test ./internal/adapters/process ./tests/integration`
 Expected: FAIL，缺少下述接口或行为；不能因测试环境损坏而把失败当成有效红灯。
 
-- [ ] **Step 3: 实现本任务接口**
+- [x] **Step 3: 实现本任务接口**
 
 按工程设计保留 PID/创建时间/路径/控制身份。对子进程采用 Windows job/成员核对，禁止 KILL_ON_JOB_CLOSE 冒充正常退出；不能因父 shell 结束丢掉子树。启动前解析 executable/cwd/args，禁止把参数拼接为 shell 源码。仅显式脚本适配才调用相应 shell。实现当前用户 ACL 管道客户端与临时模拟服务；token 运行期受保护保存，不可导出。对 status/accepted/completed/stopped 与实际退出组合判断。日志单运行10MiB×3，已知秘密脱敏、UI分页最多2000；超过期限返回未完成，不隐式 TerminateProcess。
 
-- [ ] **Step 4: 验证绿灯**
+- [x] **Step 4: 验证绿灯**
 
 Run: `go test ./internal/adapters/process ./tests/integration`
 Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 显式暂存本任务 Files 中的实现与测试，检查无本机数据后执行 `git commit -m "feat: manage Windows process lifecycles safely"`。
 
