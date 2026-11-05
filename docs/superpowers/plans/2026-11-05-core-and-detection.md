@@ -44,7 +44,7 @@ Task 1 定义 domain/project 与 domain/check 的纯类型；Task 2 定义 appli
 
 以下是测试名及关键断言片段；夹具在列出的测试文件内构建，输入使用仓库脱敏示例，不依赖真实工程。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestDecodeRejectsDuplicateKeysAndUnknownVersion(t *testing.T) {
@@ -60,21 +60,21 @@ func TestOrderExpandsDependencies(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证红灯**
+- [x] **Step 2: 验证红灯**
 
 Run: `go test ./internal/adapters/contract ./internal/domain/project`
 Expected: FAIL，缺少下述接口或行为；不能因测试环境损坏而把失败当成有效红灯。
 
-- [ ] **Step 3: 实现本任务接口**
+- [x] **Step 3: 实现本任务接口**
 
 创建 Go 模块并锁定验证依赖。解码前检查重复键与大小，嵌入本地 Schema，拒绝远程引用。Validate 检查引用、保留环境变量、Windows 环境名冲突、128 单元/32 profile/512 字符范围限额、依赖与 feature 关系；Order 稳定拓扑排序。manual stop 可登记，自动启动资格由后续规划器拒绝。给每个公开类型/规则加意图与失败行为注释。
 
-- [ ] **Step 4: 验证绿灯**
+- [x] **Step 4: 验证绿灯**
 
 Run: `go test ./internal/adapters/contract ./internal/domain/project`
 Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 显式暂存本任务 Files 中的实现与测试，检查无本机数据后执行 `git commit -m "feat: validate portable project contracts"`。
 

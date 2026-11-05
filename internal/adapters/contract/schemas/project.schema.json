@@ -1,0 +1,954 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local-project-hub.invalid/contracts/v1/project.schema.json",
+  "title": "Local Project Hub portable project v1",
+  "description": "项目可迁移声明；不保存本机路径、容器 ID、凭据或本机授权。结构校验后必须继续执行引用、依赖图、权限与路径语义校验。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "group": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "git",
+            "provided",
+            "artifact"
+          ]
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "refLabel": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "kind",
+        "identity"
+      ],
+      "additionalProperties": false
+    },
+    "requirements": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/Requirement"
+      }
+    },
+    "files": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/File"
+      }
+    },
+    "units": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ProcessUnit"
+          },
+          {
+            "$ref": "#/$defs/TaskUnit"
+          },
+          {
+            "$ref": "#/$defs/ComposeUnit"
+          },
+          {
+            "$ref": "#/$defs/ExternalUnit"
+          }
+        ]
+      },
+      "minProperties": 1,
+      "maxProperties": 128
+    },
+    "profiles": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "unitIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "featureIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "label",
+          "unitIds",
+          "featureIds"
+        ],
+        "additionalProperties": false
+      },
+      "minProperties": 1,
+      "maxProperties": 32
+    },
+    "appearance": {
+      "type": "object",
+      "properties": {
+        "coverFileId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "name",
+    "group",
+    "source",
+    "requirements",
+    "files",
+    "units",
+    "profiles"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Requirement": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "enum": [
+            "node",
+            "npm",
+            "go",
+            "python",
+            "java",
+            "docker",
+            "compose",
+            "postgres",
+            "mysql",
+            "redis",
+            "powershell",
+            "pwsh",
+            "external"
+          ]
+        },
+        "location": {
+          "enum": [
+            "windows",
+            "docker"
+          ]
+        },
+        "semantics": {
+          "enum": [
+            "npm",
+            "pep440",
+            "goversion",
+            "java",
+            "exact"
+          ]
+        },
+        "range": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "preferredVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "prepare",
+              "build",
+              "run"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "architecture": {
+          "enum": [
+            "amd64",
+            "arm64",
+            "any"
+          ]
+        },
+        "abi": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "declaration",
+                "lockfile",
+                "ci-config"
+              ]
+            },
+            "reference": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "reference"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "component",
+        "location",
+        "semantics",
+        "range",
+        "required",
+        "stages",
+        "architecture",
+        "capabilities",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "File": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "availability": {
+              "const": "included"
+            },
+            "bundlePath": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "使用 / 的相对路径；根目录、父级、盘符、ADS、保留设备名、链接和最终越界由语义与文件系统校验器另外拒绝。"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "role": {
+              "enum": [
+                "script",
+                "compose",
+                "config",
+                "cover"
+              ]
+            }
+          },
+          "required": [
+            "availability",
+            "bundlePath",
+            "required",
+            "role"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "availability": {
+              "const": "external"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "role": {
+              "enum": [
+                "source",
+                "script",
+                "compose",
+                "config",
+                "artifact",
+                "data"
+              ]
+            },
+            "expectedSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "availability",
+            "path",
+            "required",
+            "role"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "availability": {
+              "const": "generated"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            },
+            "generatorUnitId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "role": {
+              "enum": [
+                "config",
+                "artifact"
+              ]
+            }
+          },
+          "required": [
+            "availability",
+            "path",
+            "generatorUnitId",
+            "required",
+            "role"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Path": {
+      "type": "object",
+      "properties": {
+        "binding": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "relativePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "description": "使用 / 的相对路径；根目录、父级、盘符、ADS、保留设备名、链接和最终越界由语义与文件系统校验器另外拒绝。"
+        }
+      },
+      "required": [
+        "binding",
+        "relativePath"
+      ],
+      "additionalProperties": false
+    },
+    "Command": {
+      "type": "object",
+      "properties": {
+        "executable": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "runtime"
+                },
+                "requirementId": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                },
+                "relativePath": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "description": "使用 / 的相对路径；根目录、父级、盘符、ADS、保留设备名、链接和最终越界由语义与文件系统校验器另外拒绝。"
+                }
+              },
+              "required": [
+                "kind",
+                "requirementId",
+                "relativePath"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "binding"
+                },
+                "binding": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                },
+                "relativePath": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "description": "使用 / 的相对路径；根目录、父级、盘符、ADS、保留设备名、链接和最终越界由语义与文件系统校验器另外拒绝。"
+                }
+              },
+              "required": [
+                "kind",
+                "binding",
+                "relativePath"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "system"
+                },
+                "tool": {
+                  "enum": [
+                    "powershell",
+                    "pwsh",
+                    "cmd",
+                    "docker",
+                    "git"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "tool"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "maxItems": 128
+        },
+        "cwd": {
+          "type": "object",
+          "properties": {
+            "binding": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            },
+            "relativePath": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "使用 / 的相对路径；根目录、父级、盘符、ADS、保留设备名、链接和最终越界由语义与文件系统校验器另外拒绝。"
+            }
+          },
+          "required": [
+            "binding",
+            "relativePath"
+          ],
+          "additionalProperties": false
+        },
+        "envBindings": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          }
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "任务命令超时；服务进程启动后由就绪与停止策略分别计时。"
+        }
+      },
+      "required": [
+        "executable",
+        "args",
+        "cwd",
+        "envBindings"
+      ],
+      "additionalProperties": false
+    },
+    "Probe": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "process"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            }
+          },
+          "required": [
+            "kind",
+            "timeoutSeconds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "tcp"
+            },
+            "host": {
+              "enum": [
+                "127.0.0.1",
+                "localhost",
+                "::1"
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            }
+          },
+          "required": [
+            "kind",
+            "host",
+            "port",
+            "timeoutSeconds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "adapter"
+            },
+            "adapterId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            }
+          },
+          "required": [
+            "kind",
+            "adapterId",
+            "timeoutSeconds"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Stop": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "command"
+            },
+            "command": {
+              "$ref": "#/$defs/Command"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            }
+          },
+          "required": [
+            "kind",
+            "command",
+            "timeoutSeconds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "adapter"
+            },
+            "adapterId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            }
+          },
+          "required": [
+            "kind",
+            "adapterId",
+            "timeoutSeconds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "manual"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "none"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ProcessUnit": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "requirementIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "featureId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "kind": {
+          "const": "process"
+        },
+        "control": {
+          "enum": [
+            "managed",
+            "reference"
+          ]
+        },
+        "start": {
+          "$ref": "#/$defs/Command"
+        },
+        "readiness": {
+          "$ref": "#/$defs/Probe"
+        },
+        "stop": {
+          "$ref": "#/$defs/Stop"
+        }
+      },
+      "required": [
+        "resourceId",
+        "label",
+        "dependsOn",
+        "requirementIds",
+        "kind",
+        "control",
+        "start",
+        "readiness",
+        "stop"
+      ],
+      "additionalProperties": false
+    },
+    "TaskUnit": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "requirementIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "featureId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "kind": {
+          "const": "task"
+        },
+        "control": {
+          "const": "managed"
+        },
+        "command": {
+          "$ref": "#/$defs/Command"
+        },
+        "effect": {
+          "enum": [
+            "build",
+            "initialize",
+            "migration"
+          ]
+        },
+        "cancelPolicy": {
+          "enum": [
+            "checkpoint",
+            "wait"
+          ]
+        }
+      },
+      "required": [
+        "resourceId",
+        "label",
+        "dependsOn",
+        "requirementIds",
+        "kind",
+        "control",
+        "command",
+        "effect",
+        "cancelPolicy"
+      ],
+      "additionalProperties": false
+    },
+    "ComposeUnit": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "requirementIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "featureId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "kind": {
+          "const": "compose"
+        },
+        "control": {
+          "enum": [
+            "managed",
+            "reference"
+          ]
+        },
+        "engineBinding": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "composeFileIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "readiness": {
+          "$ref": "#/$defs/Probe"
+        },
+        "stop": {
+          "$ref": "#/$defs/Stop"
+        }
+      },
+      "required": [
+        "resourceId",
+        "label",
+        "dependsOn",
+        "requirementIds",
+        "kind",
+        "control",
+        "engineBinding",
+        "composeFileIds",
+        "services",
+        "readiness",
+        "stop"
+      ],
+      "additionalProperties": false
+    },
+    "ExternalUnit": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "requirementIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        },
+        "featureId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "kind": {
+          "const": "external"
+        },
+        "control": {
+          "const": "reference"
+        },
+        "binding": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "readiness": {
+          "$ref": "#/$defs/Probe"
+        }
+      },
+      "required": [
+        "resourceId",
+        "label",
+        "dependsOn",
+        "requirementIds",
+        "kind",
+        "control",
+        "binding",
+        "readiness"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

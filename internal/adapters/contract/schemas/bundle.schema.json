@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local-project-hub.invalid/contracts/v1/bundle.schema.json",
+  "title": "Local Project Hub configuration bundle v1",
+  "description": "ZIP 清单；files 不包含 manifest.json 自身，避免自校验循环。checksum 用于完整性，不表示内容可信。",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "local-project-hub/config"
+    },
+    "bundleVersion": {
+      "const": "1.0"
+    },
+    "minManagerVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "projectFile": {
+      "const": "project.json"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "使用 / 的相对路径；根目录、父级、盘符、ADS、保留设备名、链接和最终越界由语义与文件系统校验器另外拒绝。"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16777216
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "path",
+          "size",
+          "sha256"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 2048
+    },
+    "externalBindingKeys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "uniqueItems": true
+    },
+    "createdAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    }
+  },
+  "required": [
+    "format",
+    "bundleVersion",
+    "minManagerVersion",
+    "projectId",
+    "projectFile",
+    "files",
+    "externalBindingKeys",
+    "createdAt"
+  ],
+  "additionalProperties": false
+}
