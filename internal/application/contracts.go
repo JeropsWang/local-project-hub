@@ -4,16 +4,17 @@ package application
 import (
 	"github.com/JeropsWang/local-project-hub/internal/domain/check"
 	"github.com/JeropsWang/local-project-hub/internal/domain/project"
+	"github.com/JeropsWang/local-project-hub/internal/domain/task"
 	"github.com/JeropsWang/local-project-hub/internal/domain/workspace"
 )
 
 // Stable ID types prevent accidental cross-kind identity comparisons.
 type (
-	ProjectID   string
+	ProjectID   = project.ID
 	WorkspaceID string
-	ProfileID   string
-	TaskID      string
-	PlanID      string
+	ProfileID   = project.ProfileID
+	TaskID      = task.ID
+	PlanID      = task.PlanID
 	RunID       string
 	PreviewID   string
 	Revision    = int32
@@ -22,10 +23,17 @@ type (
 
 // Shared DTO aliases retain one authoritative domain representation.
 type (
-	WorkspaceView = workspace.View
-	ProjectView   = project.Snapshot
-	ProjectQuery  = project.Query
-	CheckItem     = check.Item
+	WorkspaceView      = workspace.View
+	ProjectView        = project.Snapshot
+	ProjectQuery       = project.Query
+	CheckItem          = check.Item
+	TaskView           = task.View
+	TaskKind           = task.Kind
+	TaskState          = task.State
+	OperationPlan      = task.Plan
+	SubmitPlanRequest  = task.SubmitRequest
+	ResolveTaskRequest = task.ResolveRequest
+	Event              = task.Event
 )
 
 // InitWorkspaceRequest explicitly selects where managed files will live.
@@ -48,8 +56,4 @@ type SaveProjectRequest struct {
 }
 
 // ProfileRef fixes the configuration revision used by a later operation.
-type ProfileRef struct {
-	ProjectID        ProjectID `json:"projectId"`
-	ProfileID        ProfileID `json:"profileId"`
-	ExpectedRevision Revision  `json:"expectedRevision"`
-}
+type ProfileRef = project.Ref

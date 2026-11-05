@@ -110,7 +110,7 @@ func TestLegacyWorkspaceUpgradeRequiresEmptyRecoveryJournal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if repo.Info().DBSchemaVersion != 2 {
+	if repo.Info().DBSchemaVersion != 3 {
 		t.Fatal("legacy manager schema was not explicitly upgraded")
 	}
 	if err := repo.Close(); err != nil {

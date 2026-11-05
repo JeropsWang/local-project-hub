@@ -43,7 +43,7 @@
 
 以下是测试名及关键断言片段；夹具在列出的测试文件内构建，输入使用仓库脱敏示例，不依赖真实工程。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestSubmitIdempotentAndRejectsStalePlan(t *testing.T) {
@@ -56,21 +56,21 @@ func TestRecoveryAndSafeCancellation(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证红灯**
+- [x] **Step 2: 验证红灯**
 
 Run: `go test ./internal/application ./internal/adapters/persistence`
 Expected: FAIL，缺少下述接口或行为；不能因测试环境损坏而把失败当成有效红灯。
 
-- [ ] **Step 3: 实现本任务接口**
+- [x] **Step 3: 实现本任务接口**
 
 实现服务端计划和指纹核对，输入含 revision、文件、工具、绑定和源身份。requestId 唯一并绑定请求摘要，相同 ID 不同请求返回 REQUEST_CONFLICT。变更串行执行；checkpoint/wait 取消遵守安全点；事件落库后发布，十进制游标可补读。恢复标 interrupted，保留实例记录供核对，不重放安装/迁移/发送。测试使用 fake clock/executor，不真实运行项目。
 
-- [ ] **Step 4: 验证绿灯**
+- [x] **Step 4: 验证绿灯**
 
 Run: `go test ./internal/application ./internal/adapters/persistence`
 Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 显式暂存本任务 Files 中的实现与测试，检查无本机数据后执行 `git commit -m "feat: persist idempotent operation plans and tasks"`。
 
