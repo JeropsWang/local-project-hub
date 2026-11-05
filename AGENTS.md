@@ -5,8 +5,8 @@
 ## 当前状态
 
 - 项目仍处于设计讨论阶段，目前没有应用实现。
-- 已选择独立 Windows 桌面程序，具体框架与前端技术尚待最终确认。
-- 修改实现前先阅读 `docs/requirements.md`、`docs/environments.md`、`docs/portability.md`、`docs/engineering-conventions.md` 与 `docs/visual-direction.md`，区分已确认需求和建议。
+- 已选择独立 Windows 桌面程序，核心采用 Go + Wails；前端由用户授权助手选用 React + TypeScript + Vite，样式采用 CSS Modules。
+- 修改实现前先阅读 `docs/requirements.md`、`docs/environments.md`、`docs/portability.md`、`docs/engineering-conventions.md`、`docs/technology-selection.md` 与 `docs/visual-direction.md`，区分已确认需求和建议。
 
 ## 源码可读性与注释
 
@@ -14,17 +14,18 @@
 - 重要模块说明职责与边界；公开接口、业务用例和非显然逻辑必须有有效注释，说明意图、前提、失败行为或约束。
 - 依赖编排、版本判断、进程生命周期、取消与超时、共享资源处理、路径映射、导入迁移等复杂逻辑必须说明关键决策和边界。
 - 注释与代码同步更新，不能用错误或过期注释解释行为；避免用逐行复述代替有用说明。
-- Rust 采用 rustfmt；Web 源码采用统一格式化和静态检查配置，具体工具随技术栈确定。不能仅靠个人编辑器设置。
+- Go 采用统一格式化和 go vet；前端采用 TypeScript 类型检查、ESLint 和 Prettier，在仓库中统一配置，不能仅靠个人编辑器设置。
 
 ## 架构与目录
 
 - 页面、组件、CSS、路由、服务接口、业务逻辑分别归位，禁止在入口或一个目录中堆积全部实现。
-- 前端目录约定：`src/pages/`、`src/components/`、`src/css/`、`src/router/`、`src/services/`、`src/business/`。按需增加状态、类型和资源目录，并按业务继续拆分。
+- 前端目录位于 `frontend/src/`，分别使用 `pages/`、`components/`、`css/`、`router/`、`services/`、`business/`。按需增加状态、类型、动效适配和资源目录，并按业务继续拆分。
 - 页面负责展示与组装，不直接调用系统命令、Docker 或文件系统，也不承载完整业务流程。
-- CSS 写入 `src/css/` 下对应模块，不能把整页样式塞进页面脚本或大段内联样式。动态效果所需的 CSS 变量可由逻辑更新，样式规则仍留在 CSS 中。
+- CSS 写入 `frontend/src/css/` 下对应模块，不能把整页样式塞进页面脚本或大段内联样式。动态效果所需的 CSS 变量可由逻辑更新；动画库运行时设置的位移和透明度参数可以由动效适配层管理，基础样式规则仍留在 CSS 中。
 - 路由层负责导航与路由声明，服务层负责接口通信与适配，业务层负责用例；不能把业务规则堆进服务或路由文件。
 - 运行环境兼容判断、项目依赖、启停策略和导入规则由核心业务模块统一负责，不能在前端和后端重复实现两套权威逻辑。
 - 核心业务独立于桌面框架；通过接口访问 Docker、进程、文件和存储适配器。平台差异集中在适配层。
+- Go 领域模型和业务用例不依赖 Wails、Docker SDK 或 Windows API；桌面服务调用业务用例，由 bootstrap 组装具体适配器。
 - 禁止把业务代码写进入口文件、建立反向层依赖或用循环依赖连接模块。不要为了分层创建无职责的空包装。
 
 ## 交付检查

@@ -28,8 +28,9 @@
 16. 明确退出管理器时，安全停止全部已启动项目，完成后退出管理器。
 17. 默认采用专业中性风格，允许个性化封面，并加入动态排版、视差效果和颗粒质感。
 18. 源码需要有效注释、统一格式化和正常换行；页面、CSS、路由、服务和业务逻辑分层组织。
+19. 核心语言与桌面框架选用 Go + Wails；前端技术由用户授权助手结合实际需要选择。
 
-工作空间和环境处理的详细讨论记录见 [环境文档](environments.md)。Rust、Tauri 与 Web 界面的组合是当前建议，尚未最终确认。已确认的视觉方向见 [视觉文档](visual-direction.md)，具体布局、配色和效果尚待原型确认；软件工程约定见 [分层文档](engineering-conventions.md) 和 [AGENTS.md](../AGENTS.md)。
+工作空间和环境处理的详细讨论记录见 [环境文档](environments.md)。已选择 Go + Wails；前端由助手选用 React + TypeScript + Vite，详情见 [技术选型](technology-selection.md)。已确认的视觉方向见 [视觉文档](visual-direction.md)，具体布局、配色和效果尚待原型确认；软件工程约定见 [分层文档](engineering-conventions.md) 和 [AGENTS.md](../AGENTS.md)。
 
 ## 建议的资源关系
 
@@ -88,7 +89,7 @@
 
 ## 仍需讨论
 
-- 独立桌面程序的具体框架、核心语言和界面技术。
+- 已选技术栈的具体依赖版本、接口契约和数据模型。
 - 本地 Docker 运行在 Docker Desktop、WSL、其他环境还是多种环境。
 - 本机项目的语言、启动方式和运行环境版本。
 - 一键导出的默认内容、离线运行要求、Windows 版本与架构范围。

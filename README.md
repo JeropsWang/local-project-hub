@@ -21,6 +21,7 @@
 - 明确退出管理器时，先安全停止全部已启动项目，再退出应用。
 - 默认风格专业中性，支持个性化封面，加入动态排版、视差与颗粒质感。
 - 源码须有有效注释并统一格式化，页面、CSS、路由、服务和业务逻辑分层组织。
+- 核心采用 Go + Wails；前端由用户授权助手选用 React + TypeScript + Vite，样式使用 CSS Modules。
 
 ## 讨论文档
 
@@ -31,6 +32,7 @@
 - [视觉方向](docs/visual-direction.md)
 - [工程约定与分层建议](docs/engineering-conventions.md)
 - [仓库开发约定](AGENTS.md)
+- [技术选型与比较](docs/technology-selection.md)
 
 ## 建议方向，待讨论确认
 
