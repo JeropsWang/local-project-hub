@@ -1,0 +1,35 @@
+# Dependencies and generated outputs
+node_modules/
+dist/
+build/
+target/
+coverage/
+.venv/
+__pycache__/
+
+# Real environment and machine-local configuration
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+workspace.local/
+runtime/
+logs/
+exports/
+backups/
+data/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.pem
+*.key
+
+# Editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
