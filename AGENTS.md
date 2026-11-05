@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 项目仍处于设计讨论阶段，目前没有应用实现。
+- 项目处于工程设计与实施计划评审阶段，目前没有应用实现。
 - 已选择独立 Windows 桌面程序，核心采用 Go + Wails；前端由用户授权助手选用 React + TypeScript + Vite，样式采用 CSS Modules。
 - 修改实现前先阅读 `docs/requirements.md`、`docs/environments.md`、`docs/portability.md`、`docs/engineering-conventions.md`、`docs/technology-selection.md` 与 `docs/visual-direction.md`，区分已确认需求和建议。
 
@@ -35,3 +35,4 @@
 - Git 只提交本工具代码、文档及脱敏示例，不提交真实项目登记、环境变量、密码、日志、业务数据或导出包。
 - 持续遵守已确认的关闭窗口继续运行、明确退出时安全停止全部项目的行为。
 - 兼容与迁移相关实现还须阅读 `docs/superpowers/specs/2026-11-05-compatibility-design.md`，遵守其中项目来源、证据等级和首版范围；具体本机清单位于 Git 忽略的 audit.local，不得提交或公开。
+- 开始实现前阅读 `docs/superpowers/specs/2026-11-05-engineering-design.md`、`docs/contracts/README.md` 及 `docs/superpowers/plans/2026-11-05-implementation-index.md`。安全退出集成遵守 `docs/integrations/managed-control-v1.md`，不把模拟验证当成原项目完整验收。
