@@ -29,11 +29,21 @@ func TestExecutorPanicBecomesFailedTask(t *testing.T) {
 	plans := application.NewPlanService(ws, application.NewCheckService(ws, &boundedProbe{}, noFiles{}, nil))
 	service := application.NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Prepare: panicExecutor{}})
 	t.Cleanup(func() { _ = service.Close(context.Background()) })
-	plan, err := plans.BuildPrepare(ctx, application.ProfileRef{ProjectID: application.ProjectID(doc.ProjectID), ProfileID: "development", ExpectedRevision: 1})
+	plan, err := plans.BuildPrepare(
+		ctx,
+		application.ProfileRef{
+			ProjectID:        application.ProjectID(doc.ProjectID),
+			ProfileID:        "development",
+			ExpectedRevision: 1,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.Submit(ctx, application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "panic-test"})
+	view, err := service.Submit(
+		ctx,
+		application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "panic-test"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +61,12 @@ func (e *countExecutor) Execute(ctx context.Context, plan task.Plan, control por
 	return control.Progress(ctx, task.EventData{Code: "SYNTHETIC_EFFECT_COMPLETED"})
 }
 
-func waitTask(t *testing.T, service *application.TaskService, id application.TaskID, want task.State) application.TaskView {
+func waitTask(
+	t *testing.T,
+	service *application.TaskService,
+	id application.TaskID,
+	want task.State,
+) application.TaskView {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -88,7 +103,11 @@ func TestSubmitIdempotentAndRejectsStalePlan(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	ref := application.ProfileRef{ProjectID: application.ProjectID(doc.ProjectID), ProfileID: "development", ExpectedRevision: view.Revision}
+	ref := application.ProfileRef{
+		ProjectID:        application.ProjectID(doc.ProjectID),
+		ProfileID:        "development",
+		ExpectedRevision: view.Revision,
+	}
 	plan, err := plans.BuildPrepare(ctx, ref)
 	if err != nil {
 		t.Fatal(err)
@@ -154,11 +173,21 @@ func TestRecoveryAndSafeCancellation(t *testing.T) {
 	executor := &checkpointExecutor{entered: make(chan struct{}), release: make(chan struct{})}
 	service := application.NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Prepare: executor})
 	t.Cleanup(func() { _ = service.Close(context.Background()) })
-	plan, err := plans.BuildPrepare(ctx, application.ProfileRef{ProjectID: application.ProjectID(doc.ProjectID), ProfileID: "development", ExpectedRevision: view.Revision})
+	plan, err := plans.BuildPrepare(
+		ctx,
+		application.ProfileRef{
+			ProjectID:        application.ProjectID(doc.ProjectID),
+			ProfileID:        "development",
+			ExpectedRevision: view.Revision,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	viewTask, err := service.Submit(ctx, application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "cancel-request"})
+	viewTask, err := service.Submit(
+		ctx,
+		application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "cancel-request"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,11 +235,17 @@ func TestWaitingTaskResumesSameIdentityAndReservesResources(t *testing.T) {
 	service := application.NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Prepare: executor})
 	t.Cleanup(func() { _ = service.Close(context.Background()) })
 	submit := func(id, request string) application.TaskView {
-		plan, err := plans.BuildPrepare(ctx, application.ProfileRef{ProjectID: application.ProjectID(id), ProfileID: "development", ExpectedRevision: 1})
+		plan, err := plans.BuildPrepare(
+			ctx,
+			application.ProfileRef{ProjectID: application.ProjectID(id), ProfileID: "development", ExpectedRevision: 1},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		view, err := service.Submit(ctx, application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: request})
+		view, err := service.Submit(
+			ctx,
+			application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: request},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -223,10 +258,14 @@ func TestWaitingTaskResumesSameIdentityAndReservesResources(t *testing.T) {
 	if err != nil || view.State != task.Queued || executor.calls.Load() != 1 {
 		t.Fatal("conflicting queued task bypassed waiting reservation", err)
 	}
-	if _, err := service.Resolve(ctx, application.ResolveTaskRequest{TaskID: first.ID, ExpectedEventSeq: "0", Action: "retry"}); err == nil || err.Error() != "TASK_CONFLICT" {
+	if _, err := service.Resolve(ctx, application.ResolveTaskRequest{TaskID: first.ID, ExpectedEventSeq: "0", Action: "retry"}); err == nil ||
+		err.Error() != "TASK_CONFLICT" {
 		t.Fatal("stale resolve accepted", err)
 	}
-	resumed, err := service.Resolve(ctx, application.ResolveTaskRequest{TaskID: first.ID, ExpectedEventSeq: waiting.LastEventSeq, Action: "retry"})
+	resumed, err := service.Resolve(
+		ctx,
+		application.ResolveTaskRequest{TaskID: first.ID, ExpectedEventSeq: waiting.LastEventSeq, Action: "retry"},
+	)
 	if err != nil || resumed.ID != first.ID {
 		t.Fatal("resume changed task identity", err)
 	}

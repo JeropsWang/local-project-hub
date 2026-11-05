@@ -46,7 +46,22 @@ func TestEnvironmentActivationRollsBackAllBindingsOnDatabaseFailure(t *testing.T
 	if err := os.WriteFile(program, []byte("fixture runtime; never executed"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	receipt := preparation.Receipt{WorkspaceID: repo.Info().WorkspaceID, Ref: project.Ref{ProjectID: project.ID(doc.ProjectID), ProfileID: "development", ExpectedRevision: 1}, Root: envRoot, State: "ready", PlanFingerprint: "fixture", OriginalBindings: []project.Binding{old}, Bindings: []project.Binding{{Key: "source", Kind: "path", LocalLocator: copyRoot}, {Key: "node-runtime", Kind: "runtime", LocalLocator: program}}}
+	receipt := preparation.Receipt{
+		WorkspaceID: repo.Info().WorkspaceID,
+		Ref: project.Ref{
+			ProjectID:        project.ID(doc.ProjectID),
+			ProfileID:        "development",
+			ExpectedRevision: 1,
+		},
+		Root:             envRoot,
+		State:            "ready",
+		PlanFingerprint:  "fixture",
+		OriginalBindings: []project.Binding{old},
+		Bindings: []project.Binding{
+			{Key: "source", Kind: "path", LocalLocator: copyRoot},
+			{Key: "node-runtime", Kind: "runtime", LocalLocator: program},
+		},
+	}
 	marker, _ := json.Marshal(receipt)
 	if err := os.WriteFile(filepath.Join(envRoot, ".lph-environment.json"), marker, 0600); err != nil {
 		t.Fatal(err)

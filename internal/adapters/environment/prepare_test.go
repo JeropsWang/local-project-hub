@@ -52,7 +52,20 @@ func runtimeZip(t *testing.T, entries map[string]string) []byte {
 
 func fixtureArtifact(id, version, url string, data []byte) RuntimeArtifact {
 	digest := sha256.Sum256(data)
-	return RuntimeArtifact{ID: id, Component: "python", Version: version, Architecture: "amd64", ABI: "cp" + version[:1] + version[2:4], URL: url, SHA256: hex.EncodeToString(digest[:]), Format: "zip", StripPrefix: "runtime/", Executable: "python.exe", Source: "synthetic TLS fixture", License: "synthetic fixture"}
+	return RuntimeArtifact{
+		ID:           id,
+		Component:    "python",
+		Version:      version,
+		Architecture: "amd64",
+		ABI:          "cp" + version[:1] + version[2:4],
+		URL:          url,
+		SHA256:       hex.EncodeToString(digest[:]),
+		Format:       "zip",
+		StripPrefix:  "runtime/",
+		Executable:   "python.exe",
+		Source:       "synthetic TLS fixture",
+		License:      "synthetic fixture",
+	}
 }
 
 func TestCorruptDownloadAndCancellationLeaveOriginalUntouched(t *testing.T) {
@@ -74,11 +87,25 @@ func TestCorruptDownloadAndCancellationLeaveOriginalUntouched(t *testing.T) {
 	}))
 	defer server.Close()
 	artifact := fixtureArtifact("python-fixture", "3.12.10", server.URL+"/corrupt", data)
-	provider, err := NewRuntimeProvider(root, RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}}, server.Client())
+	provider, err := NewRuntimeProvider(
+		root,
+		RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}},
+		server.Client(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := provider.Plan(context.Background(), ports.RuntimeRequest{Requirement: project.Requirement{Component: "python", Semantics: "pep440", Range: "==3.12.10", Architecture: "amd64"}})
+	plan, err := provider.Plan(
+		context.Background(),
+		ports.RuntimeRequest{
+			Requirement: project.Requirement{
+				Component:    "python",
+				Semantics:    "pep440",
+				Range:        "==3.12.10",
+				Architecture: "amd64",
+			},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,11 +117,25 @@ func TestCorruptDownloadAndCancellationLeaveOriginalUntouched(t *testing.T) {
 		t.Fatal("corrupt runtime published")
 	}
 	artifact.URL = server.URL + "/slow"
-	provider, err = NewRuntimeProvider(root, RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}}, server.Client())
+	provider, err = NewRuntimeProvider(
+		root,
+		RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}},
+		server.Client(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err = provider.Plan(context.Background(), ports.RuntimeRequest{Requirement: project.Requirement{Component: "python", Semantics: "pep440", Range: "==3.12.10", Architecture: "amd64"}})
+	plan, err = provider.Plan(
+		context.Background(),
+		ports.RuntimeRequest{
+			Requirement: project.Requirement{
+				Component:    "python",
+				Semantics:    "pep440",
+				Range:        "==3.12.10",
+				Architecture: "amd64",
+			},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,17 +155,33 @@ func TestCorruptDownloadAndCancellationLeaveOriginalUntouched(t *testing.T) {
 func TestTwoPythonABIsAndHardcodedEnvironment(t *testing.T) {
 	root := runtimeWorkspace(t)
 	data := runtimeZip(t, map[string]string{"runtime/python.exe": "synthetic runtime"})
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }))
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }),
+	)
 	defer server.Close()
 	a := fixtureArtifact("python312", "3.12.10", server.URL+"/312", data)
 	b := fixtureArtifact("python313", "3.13.16", server.URL+"/313", data)
-	provider, err := NewRuntimeProvider(root, RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{a, b}}, server.Client())
+	provider, err := NewRuntimeProvider(
+		root,
+		RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{a, b}},
+		server.Client(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	locations := []ports.RuntimeLocation{}
 	for _, version := range []string{"3.12.10", "3.13.16"} {
-		plan, err := provider.Plan(context.Background(), ports.RuntimeRequest{Requirement: project.Requirement{Component: "python", Semantics: "pep440", Range: "==" + version, Architecture: "amd64"}})
+		plan, err := provider.Plan(
+			context.Background(),
+			ports.RuntimeRequest{
+				Requirement: project.Requirement{
+					Component:    "python",
+					Semantics:    "pep440",
+					Range:        "==" + version,
+					Architecture: "amd64",
+				},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,14 +206,30 @@ func TestTwoPythonABIsAndHardcodedEnvironment(t *testing.T) {
 func TestRuntimeArchiveRejectsTraversalAndTamperedPlans(t *testing.T) {
 	root := runtimeWorkspace(t)
 	data := runtimeZip(t, map[string]string{"runtime/python.exe": "synthetic", "runtime/../../escape.txt": "escape"})
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }))
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }),
+	)
 	defer server.Close()
 	artifact := fixtureArtifact("python-fixture", "3.12.10", server.URL, data)
-	provider, err := NewRuntimeProvider(root, RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}}, server.Client())
+	provider, err := NewRuntimeProvider(
+		root,
+		RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}},
+		server.Client(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := provider.Plan(context.Background(), ports.RuntimeRequest{Requirement: project.Requirement{Component: "python", Semantics: "pep440", Range: "==3.12.10", Architecture: "amd64"}})
+	plan, err := provider.Plan(
+		context.Background(),
+		ports.RuntimeRequest{
+			Requirement: project.Requirement{
+				Component:    "python",
+				Semantics:    "pep440",
+				Range:        "==3.12.10",
+				Architecture: "amd64",
+			},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,14 +249,27 @@ func TestRuntimeArchiveRejectsTraversalAndTamperedPlans(t *testing.T) {
 func TestRuntimeReuseDetectsSameSizeExecutableTampering(t *testing.T) {
 	root := runtimeWorkspace(t)
 	data := runtimeZip(t, map[string]string{"runtime/python.exe": "trusted"})
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }))
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }),
+	)
 	defer server.Close()
 	artifact := fixtureArtifact("python-fixture", "3.12.10", server.URL, data)
-	provider, err := NewRuntimeProvider(root, RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}}, server.Client())
+	provider, err := NewRuntimeProvider(
+		root,
+		RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{artifact}},
+		server.Client(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := ports.RuntimeRequest{Requirement: project.Requirement{Component: "python", Semantics: "pep440", Range: "==3.12.10", Architecture: "amd64"}}
+	req := ports.RuntimeRequest{
+		Requirement: project.Requirement{
+			Component:    "python",
+			Semantics:    "pep440",
+			Range:        "==3.12.10",
+			Architecture: "amd64",
+		},
+	}
 	plan, err := provider.Plan(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -210,15 +296,35 @@ func TestRuntimeReuseDetectsSameSizeExecutableTampering(t *testing.T) {
 func TestRuntimeSelectionHonorsSourceMinimumBeforePreferredVersion(t *testing.T) {
 	root := runtimeWorkspace(t)
 	data := runtimeZip(t, map[string]string{"runtime/python.exe": "synthetic"})
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }))
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }),
+	)
 	defer server.Close()
 	a := fixtureArtifact("python312", "3.12.10", server.URL, data)
 	b := fixtureArtifact("python313", "3.13.16", server.URL, data)
-	provider, err := NewRuntimeProvider(root, RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{a, b}}, server.Client())
+	provider, err := NewRuntimeProvider(
+		root,
+		RuntimeCatalog{SchemaVersion: "1.0", Artifacts: []RuntimeArtifact{a, b}},
+		server.Client(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := provider.Plan(context.Background(), ports.RuntimeRequest{Requirement: project.Requirement{Component: "python", Semantics: "pep440", Range: ">=3.10", PreferredVersion: "3.12.10", Architecture: "amd64"}, Constraints: []ports.MetadataConstraint{{Component: "python", Semantics: "pep440", Range: ">=3.13", Source: "pyproject.toml"}}})
+	plan, err := provider.Plan(
+		context.Background(),
+		ports.RuntimeRequest{
+			Requirement: project.Requirement{
+				Component:        "python",
+				Semantics:        "pep440",
+				Range:            ">=3.10",
+				PreferredVersion: "3.12.10",
+				Architecture:     "amd64",
+			},
+			Constraints: []ports.MetadataConstraint{
+				{Component: "python", Semantics: "pep440", Range: ">=3.13", Source: "pyproject.toml"},
+			},
+		},
+	)
 	if err != nil || plan.Version != "3.13.16" {
 		t.Fatalf("preferred version violated source metadata: %+v %v", plan, err)
 	}

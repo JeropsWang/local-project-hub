@@ -135,7 +135,8 @@ func CanTransition(from, to State) bool {
 	case Queued:
 		return to == Running || to == Cancelled || to == Interrupted || to == Failed
 	case Running:
-		return to == CancelRequested || to == WaitingUser || to == Succeeded || to == Failed || to == Cancelled || to == Interrupted
+		return to == CancelRequested || to == WaitingUser || to == Succeeded || to == Failed || to == Cancelled ||
+			to == Interrupted
 	case CancelRequested:
 		return to == Cancelled || to == Succeeded || to == Failed || to == WaitingUser || to == Interrupted
 	case WaitingUser:

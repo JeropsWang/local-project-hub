@@ -34,14 +34,24 @@ func NewControlClient() *ControlClient { return &ControlClient{dial: dialControl
 
 // Exchange sends one operation and reads until terminal evidence or the explicit wait deadline.
 // Disconnect/timeout never cancels a save already accepted by the application.
-func (c *ControlClient) Exchange(ctx context.Context, instance run.Identity, token, operationID, action string) (ControlOutcome, error) {
+func (c *ControlClient) Exchange(
+	ctx context.Context,
+	instance run.Identity,
+	token, operationID, action string,
+) (ControlOutcome, error) {
 	var outcome ControlOutcome
 	if _, ok := ctx.Deadline(); !ok {
 		bounded, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
 		ctx = bounded
 	}
-	request := control.Request{ProtocolVersion: "1.0", RunID: instance.ControlID, OperationID: operationID, Action: action, Token: token}
+	request := control.Request{
+		ProtocolVersion: "1.0",
+		RunID:           instance.ControlID,
+		OperationID:     operationID,
+		Action:          action,
+		Token:           token,
+	}
 	encoded, _ := json.Marshal(request)
 	if _, err := control.DecodeRequest(encoded); err != nil {
 		return outcome, problem.New("CONTROL_REQUEST_INVALID", "")
@@ -116,7 +126,8 @@ func dialControlPipe(ctx context.Context, instance run.Identity) (net.Conn, erro
 	}
 	handle, ok := connection.(interface{ Fd() uintptr })
 	var serverPID uint32
-	if !ok || windows.GetNamedPipeServerProcessId(windows.Handle(handle.Fd()), &serverPID) != nil || serverPID != instance.PID {
+	if !ok || windows.GetNamedPipeServerProcessId(windows.Handle(handle.Fd()), &serverPID) != nil ||
+		serverPID != instance.PID {
 		connection.Close()
 		return nil, problem.New("INSTANCE_IDENTITY_MISMATCH", "")
 	}

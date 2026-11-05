@@ -96,7 +96,18 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 	if !ok {
 		return OperationPlan{}, problem.New("TASK_STORAGE_UNAVAILABLE", "")
 	}
-	plan := OperationPlan{ID: task.PlanID(id), Kind: kind, WorkspaceID: input.WorkspaceID, ProfileRef: &ref, Fingerprint: input.Hash(), Steps: []task.Step{}, Warnings: []string{}, RequiredBindings: []string{}, ResourceIDs: []string{}, CreatedAt: time.Now().UTC()}
+	plan := OperationPlan{
+		ID:               task.PlanID(id),
+		Kind:             kind,
+		WorkspaceID:      input.WorkspaceID,
+		ProfileRef:       &ref,
+		Fingerprint:      input.Hash(),
+		Steps:            []task.Step{},
+		Warnings:         []string{},
+		RequiredBindings: []string{},
+		ResourceIDs:      []string{},
+		CreatedAt:        time.Now().UTC(),
+	}
 	plan.SourceConstraints = report.Constraints
 	resources := map[string]bool{}
 	requirements := map[string]bool{}
@@ -106,7 +117,8 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 		for _, key := range unit.RequirementIDs {
 			requirements[key] = true
 		}
-		if kind == task.Start && unit.Control == "managed" && (unit.Kind == "process" || unit.Kind == "compose") && (unit.Stop == nil || unit.Stop.Kind == "manual" || unit.Stop.Kind == "none") {
+		if kind == task.Start && unit.Control == "managed" && (unit.Kind == "process" || unit.Kind == "compose") &&
+			(unit.Stop == nil || unit.Stop.Kind == "manual" || unit.Stop.Kind == "none") {
 			return OperationPlan{}, problem.New("AUTOMATIC_STOP_UNSUPPORTED", unitID)
 		}
 	}
@@ -128,7 +140,10 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 			}
 			fingerprints := map[string]string{"plan": plan.Fingerprint}
 			if s.runtimeProvider != nil {
-				runtimePlan, err := s.runtimeProvider.Plan(ctx, ports.RuntimeRequest{Requirement: requirement, Constraints: report.Constraints})
+				runtimePlan, err := s.runtimeProvider.Plan(
+					ctx,
+					ports.RuntimeRequest{Requirement: requirement, Constraints: report.Constraints},
+				)
 				if err != nil {
 					return OperationPlan{}, err
 				}
@@ -137,16 +152,46 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 				fingerprints["version"] = runtimePlan.Version
 				runtimePlans[key] = runtimePlan
 			}
-			plan.Steps = append(plan.Steps, task.Step{ID: "runtime-" + key, Action: "prepare-runtime", Effect: "install", CancelPolicy: "checkpoint", RequirementID: key, ResourceIDs: []string{}, InputFingerprints: fingerprints})
+			plan.Steps = append(
+				plan.Steps,
+				task.Step{
+					ID:                "runtime-" + key,
+					Action:            "prepare-runtime",
+					Effect:            "install",
+					CancelPolicy:      "checkpoint",
+					RequirementID:     key,
+					ResourceIDs:       []string{},
+					InputFingerprints: fingerprints,
+				},
+			)
 		}
 		if s.projectPreparer != nil {
-			prepared, err := s.projectPreparer.Plan(ctx, ports.ProjectPreparationRequest{Ref: ref, Document: doc, UnitIDs: ordered, Bindings: input.Bindings, RuntimePlans: runtimePlans})
+			prepared, err := s.projectPreparer.Plan(
+				ctx,
+				ports.ProjectPreparationRequest{
+					Ref:          ref,
+					Document:     doc,
+					UnitIDs:      ordered,
+					Bindings:     input.Bindings,
+					RuntimePlans: runtimePlans,
+				},
+			)
 			if err != nil {
 				return OperationPlan{}, err
 			}
 			plan.ProjectPreparation = &prepared
 			plan.Warnings = append(plan.Warnings, prepared.Warnings...)
-			plan.Steps = append(plan.Steps, task.Step{ID: "project-environment", Action: "prepare-project", Effect: "source-copy-and-package-install-scripts", CancelPolicy: "checkpoint", ResourceIDs: []string{}, InputFingerprints: map[string]string{"source": prepared.Fingerprint}})
+			plan.Steps = append(
+				plan.Steps,
+				task.Step{
+					ID:                "project-environment",
+					Action:            "prepare-project",
+					Effect:            "source-copy-and-package-install-scripts",
+					CancelPolicy:      "checkpoint",
+					ResourceIDs:       []string{},
+					InputFingerprints: map[string]string{"source": prepared.Fingerprint},
+				},
+			)
 		}
 	} else {
 		if kind == task.Stop {
@@ -211,7 +256,16 @@ func (s *PlanService) input(ctx context.Context, ref ProfileRef) (planInput, pro
 	if view.Revision != ref.ExpectedRevision {
 		return planInput{}, project.Document{}, report, problem.New("REVISION_CONFLICT", "")
 	}
-	input := planInput{WorkspaceID: repo.Info().WorkspaceID, Root: repo.Info().Root, WorkspaceState: repo.Info().State, Revision: view.Revision, DocumentHash: view.ContentHash, SourceFingerprint: report.SourceFingerprint, Bindings: map[string]project.Binding{}, Checks: map[string]string{}}
+	input := planInput{
+		WorkspaceID:       repo.Info().WorkspaceID,
+		Root:              repo.Info().Root,
+		WorkspaceState:    repo.Info().State,
+		Revision:          view.Revision,
+		DocumentHash:      view.ContentHash,
+		SourceFingerprint: report.SourceFingerprint,
+		Bindings:          map[string]project.Binding{},
+		Checks:            map[string]string{},
+	}
 	keys := map[string]bool{}
 	for _, unit := range view.Document.Units {
 		if unit.Binding != "" {
@@ -276,7 +330,10 @@ func (s *PlanService) validate(ctx context.Context, plan task.Plan) error {
 		if s.runtimeProvider == nil {
 			return problem.New("PLAN_STALE", "")
 		}
-		runtimePlan, err := s.runtimeProvider.Plan(ctx, ports.RuntimeRequest{Requirement: doc.Requirements[step.RequirementID], Constraints: report.Constraints})
+		runtimePlan, err := s.runtimeProvider.Plan(
+			ctx,
+			ports.RuntimeRequest{Requirement: doc.Requirements[step.RequirementID], Constraints: report.Constraints},
+		)
 		if err != nil || runtimePlan.Fingerprint != step.InputFingerprints["runtime"] {
 			return problem.New("PLAN_STALE", "")
 		}
@@ -290,7 +347,16 @@ func (s *PlanService) validate(ctx context.Context, plan task.Plan) error {
 		if err != nil {
 			return problem.New("PLAN_STALE", "")
 		}
-		fresh, err := s.projectPreparer.Plan(ctx, ports.ProjectPreparationRequest{Ref: *plan.ProfileRef, Document: doc, UnitIDs: ordered, Bindings: input.Bindings, RuntimePlans: runtimePlans})
+		fresh, err := s.projectPreparer.Plan(
+			ctx,
+			ports.ProjectPreparationRequest{
+				Ref:          *plan.ProfileRef,
+				Document:     doc,
+				UnitIDs:      ordered,
+				Bindings:     input.Bindings,
+				RuntimePlans: runtimePlans,
+			},
+		)
 		if err != nil || fresh.Fingerprint != plan.ProjectPreparation.Fingerprint {
 			return problem.New("PLAN_STALE", "")
 		}
@@ -318,7 +384,11 @@ func safeTaskError(err error) *task.AppError {
 	if errors.As(err, &known) {
 		return &task.AppError{Code: known.Code, Message: "The operation could not complete.", Retryable: true}
 	}
-	return &task.AppError{Code: "TASK_EXECUTION_FAILED", Message: "The operation failed; inspect the controlled task log.", Retryable: true}
+	return &task.AppError{
+		Code:      "TASK_EXECUTION_FAILED",
+		Message:   "The operation failed; inspect the controlled task log.",
+		Retryable: true,
+	}
 }
 
 func parseCursor(value string) (int64, error) {

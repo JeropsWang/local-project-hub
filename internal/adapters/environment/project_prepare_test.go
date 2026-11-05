@@ -13,9 +13,22 @@ import (
 
 func copyRequest(source string) ports.ProjectPreparationRequest {
 	return ports.ProjectPreparationRequest{
-		Ref:      project.Ref{ProjectID: "11111111-1111-4111-8111-111111111111", ProfileID: "development", ExpectedRevision: 1},
-		Document: project.Document{Units: map[string]project.Unit{"app": {Kind: "process", Start: &project.Command{CWD: project.Path{Binding: "source", RelativePath: "."}}}}},
-		UnitIDs:  []string{"app"}, Bindings: map[string]project.Binding{"source": {Key: "source", Kind: "path", LocalLocator: source}},
+		Ref: project.Ref{
+			ProjectID:        "11111111-1111-4111-8111-111111111111",
+			ProfileID:        "development",
+			ExpectedRevision: 1,
+		},
+		Document: project.Document{
+			Units: map[string]project.Unit{
+				"app": {
+					Kind:  "process",
+					Start: &project.Command{CWD: project.Path{Binding: "source", RelativePath: "."}},
+				},
+			},
+		},
+		UnitIDs: []string{
+			"app",
+		}, Bindings: map[string]project.Binding{"source": {Key: "source", Kind: "path", LocalLocator: source}},
 	}
 }
 
@@ -64,7 +77,8 @@ func TestManagedSourceCopyExcludesInheritedEnvironmentsAndSecrets(t *testing.T) 
 	if got, err := os.ReadFile(filepath.Join(source, ".venv", "keep")); err != nil || string(got) != "old venv" {
 		t.Fatal("original environment changed")
 	}
-	if receipt.PlanFingerprint != plan.Fingerprint || receipt.State != "ready" || receipt.OriginalBindings[0].LocalLocator != source {
+	if receipt.PlanFingerprint != plan.Fingerprint || receipt.State != "ready" ||
+		receipt.OriginalBindings[0].LocalLocator != source {
 		t.Fatalf("missing local provenance: %+v", receipt)
 	}
 }
@@ -108,7 +122,12 @@ func TestDependencyRestoreFailureDoesNotActivateOrLeakCopy(t *testing.T) {
 	ctx := context.Background()
 	root, source := runtimeWorkspace(t), t.TempDir()
 	putSource(t, source, "package.json", `{"name":"fixture","version":"1.0.0"}`)
-	putSource(t, source, "package-lock.json", `{"name":"fixture","version":"1.0.0","lockfileVersion":3,"packages":{"":{"name":"fixture","version":"1.0.0"}}}`)
+	putSource(
+		t,
+		source,
+		"package-lock.json",
+		`{"name":"fixture","version":"1.0.0","lockfileVersion":3,"packages":{"":{"name":"fixture","version":"1.0.0"}}}`,
+	)
 	putSource(t, source, "node_modules/keep", "original")
 	runner := &failingRestore{cause: context.Canceled}
 	preparer, err := NewProjectPreparer(root, runner)
@@ -117,7 +136,10 @@ func TestDependencyRestoreFailureDoesNotActivateOrLeakCopy(t *testing.T) {
 	}
 	req := copyRequest(source)
 	req.Document.Requirements = map[string]project.Requirement{"node-runtime": {Component: "node", Required: true}}
-	req.Document.Units["app"] = project.Unit{RequirementIDs: []string{"node-runtime"}, Start: req.Document.Units["app"].Start}
+	req.Document.Units["app"] = project.Unit{
+		RequirementIDs: []string{"node-runtime"},
+		Start:          req.Document.Units["app"].Start,
+	}
 	req.RuntimePlans = map[string]ports.RuntimeInstallPlan{"node-runtime": {Component: "node", Fingerprint: "pinned"}}
 	plan, err := preparer.Plan(ctx, req)
 	if err != nil {
@@ -126,7 +148,17 @@ func TestDependencyRestoreFailureDoesNotActivateOrLeakCopy(t *testing.T) {
 	if len(plan.Restores) == 0 || plan.Restores[0].Effect != "package-install-scripts" {
 		t.Fatal("install effects hidden")
 	}
-	_, err = preparer.Prepare(ctx, plan, map[string]ports.RuntimeLocation{"node-runtime": {Root: filepath.Join(root, "runtimes", "node", "fixture"), Executable: filepath.Join(root, "runtimes", "node", "fixture", "node.exe"), Fingerprint: "pinned"}})
+	_, err = preparer.Prepare(
+		ctx,
+		plan,
+		map[string]ports.RuntimeLocation{
+			"node-runtime": {
+				Root:        filepath.Join(root, "runtimes", "node", "fixture"),
+				Executable:  filepath.Join(root, "runtimes", "node", "fixture", "node.exe"),
+				Fingerprint: "pinned",
+			},
+		},
+	)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("restore failure lost: %v", err)
 	}
@@ -149,8 +181,15 @@ func TestRequiredExcludedFileAndUnpinnedNodeRestoreAreReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := copyRequest(source)
-	req.Document.Files = map[string]project.File{"config": {Required: true, Availability: "external", Path: &project.Path{Binding: "source", RelativePath: ".env"}}}
-	if _, err := preparer.Plan(context.Background(), req); err == nil || err.Error() != "SOURCE_REQUIRED_FILE_EXCLUDED" {
+	req.Document.Files = map[string]project.File{
+		"config": {
+			Required:     true,
+			Availability: "external",
+			Path:         &project.Path{Binding: "source", RelativePath: ".env"},
+		},
+	}
+	if _, err := preparer.Plan(context.Background(), req); err == nil ||
+		err.Error() != "SOURCE_REQUIRED_FILE_EXCLUDED" {
 		t.Fatalf("silently dropped declared config: %v", err)
 	}
 	delete(req.Document.Files, "config")
@@ -178,12 +217,16 @@ func TestUnselectedOptionalPythonRequirementsDoNotSuppressPrimaryVenv(t *testing
 	u := req.Document.Units["app"]
 	u.RequirementIDs = []string{"python-runtime"}
 	req.Document.Units["app"] = u
-	req.RuntimePlans = map[string]ports.RuntimeInstallPlan{"python-runtime": {Component: "python", Fingerprint: "pinned"}}
+	req.RuntimePlans = map[string]ports.RuntimeInstallPlan{
+		"python-runtime": {Component: "python", Fingerprint: "pinned"},
+	}
 	plan, err := preparer.Plan(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Restores) != 2 || plan.Restores[0].Effect != "create-venv" || plan.Restores[0].Directory.RelativePath != "." || plan.Restores[1].Effect != "verify-dependencies" {
+	if len(plan.Restores) != 2 || plan.Restores[0].Effect != "create-venv" ||
+		plan.Restores[0].Directory.RelativePath != "." ||
+		plan.Restores[1].Effect != "verify-dependencies" {
 		t.Fatalf("unselected optional packages affected primary environment: %+v", plan.Restores)
 	}
 }

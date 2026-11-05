@@ -22,7 +22,11 @@ import (
 
 // Stop initiates at most one normal operation and observes the whole Job. A wait
 // timeout ends only this caller's wait; an accepted save continues independently.
-func (a *NativeProcessAdapter) Stop(ctx context.Context, identity run.Identity, spec ports.StopSpec) (ports.StopResult, error) {
+func (a *NativeProcessAdapter) Stop(
+	ctx context.Context,
+	identity run.Identity,
+	spec ports.StopSpec,
+) (ports.StopResult, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	var result ports.StopResult
@@ -91,7 +95,8 @@ func (a *NativeProcessAdapter) Stop(ctx context.Context, identity run.Identity, 
 			}
 		}
 		result = stopObservation(state, outcome, code)
-		if state.Exited && operationFinished && (state.ExitCodesVerified || state.ExitFailure || state.ExitVerificationFailed) {
+		if state.Exited && operationFinished &&
+			(state.ExitCodesVerified || state.ExitFailure || state.ExitVerificationFailed) {
 			if state.ExitFailure {
 				result.Code = "PROCESS_EXIT_FAILED"
 			} else if state.ExitVerificationFailed {
@@ -156,7 +161,12 @@ func (a *NativeProcessAdapter) beginStop(instance *nativeInstance, operationID s
 }
 
 func stopObservation(state ports.InstanceState, outcome ControlOutcome, code string) ports.StopResult {
-	return ports.StopResult{Accepted: outcome.Accepted, RootExited: !state.RootRunning, ActiveProcesses: state.ActiveProcesses, Code: code}
+	return ports.StopResult{
+		Accepted:        outcome.Accepted,
+		RootExited:      !state.RootRunning,
+		ActiveProcesses: state.ActiveProcesses,
+		Code:            code,
+	}
 }
 
 func (a *NativeProcessAdapter) executeStopCommand(instance *nativeInstance) error {
@@ -193,11 +203,18 @@ func (a *NativeProcessAdapter) executeStopCommand(instance *nativeInstance) erro
 	defer stdout.Close()
 	defer stderr.Close()
 	command.Stdout, command.Stderr = stdout, stderr
-	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NO_WINDOW}
+	command.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NO_WINDOW,
+	}
 	if err := command.Start(); err != nil {
 		return problem.New("STOP_COMMAND_FAILED", "")
 	}
-	handle, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(command.Process.Pid))
+	handle, err := windows.OpenProcess(
+		windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE,
+		false,
+		uint32(command.Process.Pid),
+	)
 	if err == nil {
 		err = windows.AssignProcessToJobObject(instance.job, handle)
 		windows.CloseHandle(handle)

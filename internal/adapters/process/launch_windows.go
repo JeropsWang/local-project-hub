@@ -157,16 +157,28 @@ func (a *NativeProcessAdapter) Start(ctx context.Context, spec ports.ProcessSpec
 	command := exec.Command(launch.Executable, launch.Args...)
 	command.Dir = launch.CWD
 	command.Env = businessEnvironment(launch.Environment)
-	command.Env = append(command.Env, "LPH_RUN_ID="+spec.RunID, "LPH_CONTROL_PIPE="+`\\.\pipe\LocalProjectHub.`+spec.RunID, "LPH_CONTROL_TOKEN="+token)
+	command.Env = append(
+		command.Env,
+		"LPH_RUN_ID="+spec.RunID,
+		"LPH_CONTROL_PIPE="+`\\.\pipe\LocalProjectHub.`+spec.RunID,
+		"LPH_CONTROL_TOKEN="+token,
+	)
 	command.Stdout, command.Stderr = stdout, stderr
-	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NO_WINDOW}
+	command.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_SUSPENDED | windows.CREATE_NO_WINDOW,
+	}
 	if err := command.Start(); err != nil {
 		tracker.close()
 		windows.CloseHandle(job)
 		log.Close()
 		return run.Identity{}, err
 	}
-	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, uint32(command.Process.Pid))
+	handle, err := windows.OpenProcess(
+		windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE,
+		false,
+		uint32(command.Process.Pid),
+	)
 	if err == nil {
 		err = windows.AssignProcessToJobObject(job, handle)
 	}
@@ -197,7 +209,17 @@ func (a *NativeProcessAdapter) Start(ctx context.Context, spec ports.ProcessSpec
 	for key, name := range scripts {
 		hashes[name] = spec.Scripts[key].SHA256
 	}
-	instance := &nativeInstance{identity: instanceID, process: handle, job: job, tracker: tracker, log: log, stop: stop, scripts: hashes, token: token, waitDone: make(chan struct{})}
+	instance := &nativeInstance{
+		identity: instanceID,
+		process:  handle,
+		job:      job,
+		tracker:  tracker,
+		log:      log,
+		stop:     stop,
+		scripts:  hashes,
+		token:    token,
+		waitDone: make(chan struct{}),
+	}
 	a.instances[spec.RunID] = instance
 	go func() { _ = command.Wait(); _ = stdout.Close(); _ = stderr.Close(); close(instance.waitDone) }()
 	started = true
@@ -321,14 +343,18 @@ func validateProcessCommand(command ports.ProcessCommand) error {
 		}
 	}
 	for name, value := range command.Environment {
-		if strings.ContainsAny(name, "=\x00") || name == "" || strings.IndexByte(value, 0) >= 0 || strings.HasPrefix(strings.ToUpper(name), "LPH_") {
+		if strings.ContainsAny(name, "=\x00") || name == "" || strings.IndexByte(value, 0) >= 0 ||
+			strings.HasPrefix(strings.ToUpper(name), "LPH_") {
 			return problem.New("PROCESS_ENVIRONMENT_INVALID", "")
 		}
 	}
 	return nil
 }
 
-func (a *NativeProcessAdapter) snapshotScripts(relative string, scripts map[string]ports.ProcessScript) (map[string]string, error) {
+func (a *NativeProcessAdapter) snapshotScripts(
+	relative string,
+	scripts map[string]ports.ProcessScript,
+) (map[string]string, error) {
 	if len(scripts) > 2048 {
 		return nil, problem.New("RUN_SNAPSHOT_LIMIT", "")
 	}
@@ -340,12 +366,14 @@ func (a *NativeProcessAdapter) snapshotScripts(relative string, scripts map[stri
 	for key, script := range scripts {
 		total += int64(len(script.Bytes))
 		digest := sha256.Sum256(script.Bytes)
-		if !processKey.MatchString(key) || len(script.Bytes) > 16*1024*1024 || total > 128*1024*1024 || hex.EncodeToString(digest[:]) != script.SHA256 {
+		if !processKey.MatchString(key) || len(script.Bytes) > 16*1024*1024 || total > 128*1024*1024 ||
+			hex.EncodeToString(digest[:]) != script.SHA256 {
 			return nil, problem.New("RUN_SCRIPT_INVALID", key)
 		}
 		name := path.Join(relative, "scripts", key)
 		if script.Name != "" {
-			if project.ValidateRelativePath(script.Name) != nil || path.Base(script.Name) != script.Name || script.Name == "." {
+			if project.ValidateRelativePath(script.Name) != nil || path.Base(script.Name) != script.Name ||
+				script.Name == "." {
 				return nil, problem.New("RUN_SCRIPT_INVALID", key)
 			}
 			if err := a.root.Mkdir(name, 0700); err != nil {

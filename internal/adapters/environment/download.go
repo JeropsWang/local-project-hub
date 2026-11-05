@@ -85,7 +85,10 @@ func (p *NativeRuntimeProvider) download(ctx context.Context, root *os.Root, art
 		return "", problem.New("ARTIFACT_DOWNLOAD_LIMIT", "")
 	}
 	sum := sha256.New()
-	n, err := io.Copy(io.MultiWriter(file, sum), io.LimitReader(contextReader{ctx, response.Body}, maxRuntimeDownload+1))
+	n, err := io.Copy(
+		io.MultiWriter(file, sum),
+		io.LimitReader(contextReader{ctx, response.Body}, maxRuntimeDownload+1),
+	)
 	if err != nil {
 		return "", err
 	}

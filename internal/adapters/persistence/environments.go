@@ -23,7 +23,9 @@ var environmentBindingKey = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 // ActivateEnvironment commits all local selections together after verifying the
 // ready receipt and optimistic revision/bindings. A running project is immutable.
 func (s *Store) ActivateEnvironment(ctx context.Context, receipt preparation.Receipt) error {
-	if receipt.WorkspaceID != s.info.WorkspaceID || receipt.State != "ready" || !environmentContained(filepath.Join(s.dir.Path, "envs"), receipt.Root) || len(receipt.Bindings) == 0 {
+	if receipt.WorkspaceID != s.info.WorkspaceID || receipt.State != "ready" ||
+		!environmentContained(filepath.Join(s.dir.Path, "envs"), receipt.Root) ||
+		len(receipt.Bindings) == 0 {
 		return problem.New("ENVIRONMENT_RECEIPT_INVALID", "")
 	}
 	anchor, err := filesystem.OpenLocalRoot(receipt.Root)
@@ -54,7 +56,10 @@ func (s *Store) ActivateEnvironment(ctx context.Context, receipt preparation.Rec
 		seen[binding.Key] = true
 		switch binding.Kind {
 		case "path":
-			if !strings.EqualFold(filepath.Clean(binding.LocalLocator), filepath.Join(receipt.Root, "sources", binding.Key)) {
+			if !strings.EqualFold(
+				filepath.Clean(binding.LocalLocator),
+				filepath.Join(receipt.Root, "sources", binding.Key),
+			) {
 				return problem.New("ENVIRONMENT_BINDING_OUTSIDE_WORKSPACE", binding.Key)
 			}
 			root, err := filesystem.OpenLocalRoot(binding.LocalLocator)
@@ -63,7 +68,8 @@ func (s *Store) ActivateEnvironment(ctx context.Context, receipt preparation.Rec
 			}
 			root.Close()
 		case "runtime":
-			if !environmentContained(receipt.Root, binding.LocalLocator) && !environmentContained(filepath.Join(s.dir.Path, "runtimes"), binding.LocalLocator) {
+			if !environmentContained(receipt.Root, binding.LocalLocator) &&
+				!environmentContained(filepath.Join(s.dir.Path, "runtimes"), binding.LocalLocator) {
 				return problem.New("ENVIRONMENT_BINDING_OUTSIDE_WORKSPACE", binding.Key)
 			}
 			parent, err := filesystem.OpenLocalRoot(filepath.Dir(binding.LocalLocator))
@@ -110,7 +116,8 @@ func (s *Store) ActivateEnvironment(ctx context.Context, receipt preparation.Rec
 	for _, binding := range receipt.Bindings {
 		var current project.Binding
 		current.Key = binding.Key
-		err := tx.QueryRowContext(ctx, "SELECT kind,local_locator,secret_ref FROM bindings WHERE workspace_id=? AND project_id=? AND binding_key=?", s.info.WorkspaceID, receipt.Ref.ProjectID, binding.Key).Scan(&current.Kind, &current.LocalLocator, &current.SecretRef)
+		err := tx.QueryRowContext(ctx, "SELECT kind,local_locator,secret_ref FROM bindings WHERE workspace_id=? AND project_id=? AND binding_key=?", s.info.WorkspaceID, receipt.Ref.ProjectID, binding.Key).
+			Scan(&current.Kind, &current.LocalLocator, &current.SecretRef)
 		previous, existed := originals[binding.Key]
 		if existed && (err != nil || current != previous) || !existed && !errors.Is(err, sql.ErrNoRows) {
 			return problem.New("ENVIRONMENT_BINDING_CONFLICT", binding.Key)
@@ -127,7 +134,8 @@ func environmentContained(root, candidate string) bool {
 		return false
 	}
 	relative, err := filepath.Rel(root, candidate)
-	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
+		!filepath.IsAbs(relative)
 }
 
 // BindRuntime records only manager-installed SDKs under this workspace.
@@ -136,11 +144,15 @@ func (s *Store) BindRuntime(ctx context.Context, projectID, key string, location
 		return problem.New("BINDING_INVALID", "")
 	}
 	relative, err := filepath.Rel(filepath.Join(s.dir.Path, "runtimes"), location.Root)
-	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+	if err != nil || relative == "." || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(relative) {
 		return problem.New("RUNTIME_BINDING_OUTSIDE_WORKSPACE", "")
 	}
 	executableRelative, err := filepath.Rel(location.Root, location.Executable)
-	if err != nil || executableRelative == ".." || strings.HasPrefix(executableRelative, ".."+string(filepath.Separator)) || filepath.IsAbs(executableRelative) {
+	if err != nil || executableRelative == ".." ||
+		strings.HasPrefix(executableRelative, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(executableRelative) {
 		return problem.New("RUNTIME_BINDING_OUTSIDE_WORKSPACE", "")
 	}
 	info, err := os.Lstat(location.Executable)

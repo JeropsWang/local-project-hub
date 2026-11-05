@@ -24,7 +24,11 @@ func NewProbe() *NativeProbe { return &NativeProbe{} }
 
 // Discover enforces output and time budgets, and strips project-sensitive environment options.
 func (p *NativeProbe) Discover(ctx context.Context, req ports.ProbeRequest) (ports.Observation, error) {
-	obs := ports.Observation{Component: req.Tool, Status: check.Unknown, Evidence: check.Evidence{Kind: "observation", ObservedAt: time.Now().UTC()}}
+	obs := ports.Observation{
+		Component: req.Tool,
+		Status:    check.Unknown,
+		Evidence:  check.Evidence{Kind: "observation", ObservedAt: time.Now().UTC()},
+	}
 	program, args, err := toolArgs(req.Tool)
 	if err != nil {
 		return obs, err
@@ -87,7 +91,7 @@ func (p *NativeProbe) Discover(ctx context.Context, req ports.ProbeRequest) (por
 	output := &boundedOutput{cancel: cancel}
 	cmd := exec.CommandContext(probeCtx, locator, args...)
 	cmd.Dir = filepath.Dir(locator)
-	cmd.Env = probeEnvironment()
+	cmd.Env = probeEnvironment(req.Tool)
 	hideProbeWindow(cmd)
 	cmd.Stdout = output
 	cmd.Stderr = output
@@ -140,11 +144,20 @@ func (w *boundedOutput) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func probeEnvironment() []string {
+func probeEnvironment(tool string) []string {
 	result := []string{"GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "PYTHONDONTWRITEBYTECODE=1"}
 	for _, key := range []string{"SystemRoot", "WINDIR", "PATH", "PATHEXT", "TEMP", "TMP"} {
 		if value, ok := os.LookupEnv(key); ok {
 			result = append(result, key+"="+value)
+		}
+	}
+	if tool == "docker" || tool == "compose" {
+		// Docker's Windows plugin discovery uses ProgramFiles, and its current
+		// context uses the user's config home. Do not inherit arbitrary options.
+		for _, key := range []string{"ProgramFiles", "USERPROFILE", "APPDATA", "LOCALAPPDATA"} {
+			if value, ok := os.LookupEnv(key); ok {
+				result = append(result, key+"="+value)
+			}
 		}
 	}
 	return result

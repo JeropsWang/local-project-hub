@@ -51,7 +51,8 @@ func ValidToken(token string) bool { return tokenText.MatchString(token) }
 
 // Authenticate avoids early-exit comparison of equally sized runtime tokens.
 func Authenticate(actual, expected string) bool {
-	return ValidToken(actual) && ValidToken(expected) && subtle.ConstantTimeCompare([]byte(actual), []byte(expected)) == 1
+	return ValidToken(actual) && ValidToken(expected) &&
+		subtle.ConstantTimeCompare([]byte(actual), []byte(expected)) == 1
 }
 
 // DecodeRequest rejects duplicate/unknown fields, trailing data and invalid identities.
@@ -60,7 +61,9 @@ func DecodeRequest(data []byte) (Request, error) {
 	if err := strictMessage(data, &result, []string{"protocolVersion", "runId", "operationId", "action", "token"}); err != nil {
 		return result, err
 	}
-	if result.ProtocolVersion != "1.0" || !ValidIdentity(result.RunID) || !ValidIdentity(result.OperationID) || !ValidToken(result.Token) || !slices.Contains([]string{"status", "quiesce", "shutdown"}, result.Action) {
+	if result.ProtocolVersion != "1.0" || !ValidIdentity(result.RunID) || !ValidIdentity(result.OperationID) ||
+		!ValidToken(result.Token) ||
+		!slices.Contains([]string{"status", "quiesce", "shutdown"}, result.Action) {
 		return Request{}, errors.New("INVALID_REQUEST")
 	}
 	return result, nil
@@ -72,7 +75,11 @@ func DecodeResponse(data []byte, runID, operationID string) (Response, error) {
 	if err := strictMessage(data, &result, []string{"protocolVersion", "runId", "operationId", "kind", "state", "error"}); err != nil {
 		return result, err
 	}
-	if result.ProtocolVersion != "1.0" || result.RunID != runID || result.OperationID != operationID || !ValidIdentity(runID) || !ValidIdentity(operationID) || !slices.Contains([]string{"accepted", "status", "completed", "rejected"}, result.Kind) || !slices.Contains([]string{"running", "quiescing", "blocked", "saving", "stopped", "failed"}, result.State) {
+	if result.ProtocolVersion != "1.0" || result.RunID != runID || result.OperationID != operationID ||
+		!ValidIdentity(runID) ||
+		!ValidIdentity(operationID) ||
+		!slices.Contains([]string{"accepted", "status", "completed", "rejected"}, result.Kind) ||
+		!slices.Contains([]string{"running", "quiescing", "blocked", "saving", "stopped", "failed"}, result.State) {
 		return Response{}, errors.New("INVALID_RESPONSE")
 	}
 	if result.Error != nil && (!errorCode.MatchString(result.Error.Code) || len(result.Error.Message) > 2048) {

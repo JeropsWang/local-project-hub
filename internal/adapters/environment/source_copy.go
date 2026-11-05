@@ -27,10 +27,33 @@ const maxSourceEntries = 100000
 func excludedSource(name string) bool {
 	for _, part := range strings.Split(strings.ToLower(name), "/") {
 		switch part {
-		case ".git", ".worktrees", ".superpowers", ".venv", ".venv-image-match", ".deps", "node_modules", "__pycache__", ".pytest_cache", ".mypy_cache", ".cache", ".next", "dist", "build", "target", "logs", "data", "backups", ".npmrc", ".pypirc", ".netrc", ".ssh":
+		case ".git",
+			".worktrees",
+			".superpowers",
+			".venv",
+			".venv-image-match",
+			".deps",
+			"node_modules",
+			"__pycache__",
+			".pytest_cache",
+			".mypy_cache",
+			".cache",
+			".next",
+			"dist",
+			"build",
+			"target",
+			"logs",
+			"data",
+			"backups",
+			".npmrc",
+			".pypirc",
+			".netrc",
+			".ssh":
 			return true
 		}
-		if strings.HasPrefix(part, ".lph-") || part == ".env" || strings.HasPrefix(part, ".env.") && !slices.Contains([]string{".env.example", ".env.sample", ".env.template"}, part) {
+		if strings.HasPrefix(part, ".lph-") || part == ".env" ||
+			strings.HasPrefix(part, ".env.") &&
+				!slices.Contains([]string{".env.example", ".env.sample", ".env.template"}, part) {
 			return true
 		}
 	}
@@ -152,7 +175,10 @@ func copySource(ctx context.Context, destination *os.Root, relative string, sour
 			return err
 		}
 		digest := sha256.New()
-		n, copyErr := io.Copy(io.MultiWriter(output, digest), io.LimitReader(contextReader{ctx, input}, maxSourceFile+1))
+		n, copyErr := io.Copy(
+			io.MultiWriter(output, digest),
+			io.LimitReader(contextReader{ctx, input}, maxSourceFile+1),
+		)
 		input.Close()
 		syncErr, closeErr := output.Sync(), output.Close()
 		if copyErr != nil {

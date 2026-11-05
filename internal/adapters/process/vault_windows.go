@@ -40,7 +40,11 @@ func saveControl(root *os.Root, identity run.Identity, token string) error {
 	if err := root.MkdirAll("secrets/controls", 0700); err != nil {
 		return err
 	}
-	file, err := root.OpenFile(path.Join("secrets/controls", identity.ControlID+".dpapi"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	file, err := root.OpenFile(
+		path.Join("secrets/controls", identity.ControlID+".dpapi"),
+		os.O_WRONLY|os.O_CREATE|os.O_EXCL,
+		0600,
+	)
 	if err != nil {
 		return err
 	}

@@ -55,7 +55,18 @@ func TestPinnedRuntimeSupplySmoke(t *testing.T) {
 				semantics = "goversion"
 				rangeText = artifact.Version
 			}
-			plan, err := provider.Plan(ctx, ports.RuntimeRequest{Requirement: project.Requirement{Component: artifact.Component, Semantics: semantics, Range: rangeText, PreferredVersion: artifact.Version, Architecture: "amd64"}})
+			plan, err := provider.Plan(
+				ctx,
+				ports.RuntimeRequest{
+					Requirement: project.Requirement{
+						Component:        artifact.Component,
+						Semantics:        semantics,
+						Range:            rangeText,
+						PreferredVersion: artifact.Version,
+						Architecture:     "amd64",
+					},
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,12 +74,29 @@ func TestPinnedRuntimeSupplySmoke(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			observed, err := environment.NewProbe().Discover(ctx, ports.ProbeRequest{Tool: artifact.Component, Executable: location.Executable})
+			observed, err := environment.NewProbe().
+				Discover(ctx, ports.ProbeRequest{Tool: artifact.Component, Executable: location.Executable})
 			if err != nil || observed.Version != artifact.Version || observed.Architecture != "amd64" {
 				t.Fatalf("pinned executable smoke: %+v %v", observed, err)
 			}
-			t.Logf("verified %s %s %s; SHA256 %s", artifact.Component, observed.Version, observed.Architecture, artifact.SHA256)
-			reused, err := provider.Plan(ctx, ports.RuntimeRequest{Requirement: project.Requirement{Component: artifact.Component, Semantics: semantics, Range: rangeText, Architecture: "amd64"}})
+			t.Logf(
+				"verified %s %s %s; SHA256 %s",
+				artifact.Component,
+				observed.Version,
+				observed.Architecture,
+				artifact.SHA256,
+			)
+			reused, err := provider.Plan(
+				ctx,
+				ports.RuntimeRequest{
+					Requirement: project.Requirement{
+						Component:    artifact.Component,
+						Semantics:    semantics,
+						Range:        rangeText,
+						Architecture: "amd64",
+					},
+				},
+			)
 			if err != nil || !reused.AlreadyInstalled {
 				t.Fatalf("read-only probe mutated installed SDK: %+v %v", reused, err)
 			}
@@ -110,7 +138,13 @@ func TestManagedProjectPreparationSmoke(t *testing.T) {
 			if artifact.Component == "go" {
 				semantics = "goversion"
 			}
-			requirement := project.Requirement{Component: artifact.Component, Semantics: semantics, Range: rangeText, Required: true, Architecture: "amd64"}
+			requirement := project.Requirement{
+				Component:    artifact.Component,
+				Semantics:    semantics,
+				Range:        rangeText,
+				Required:     true,
+				Architecture: "amd64",
+			}
 			sdkPlan, err := provider.Plan(ctx, ports.RuntimeRequest{Requirement: requirement})
 			if err != nil {
 				t.Fatal(err)
@@ -135,8 +169,31 @@ func TestManagedProjectPreparationSmoke(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			doc := project.Document{Requirements: map[string]project.Requirement{"sdk": requirement}, Units: map[string]project.Unit{"app": {RequirementIDs: []string{"sdk"}, Start: &project.Command{CWD: project.Path{Binding: "source", RelativePath: "."}}}}}
-			plan, err := preparer.Plan(ctx, ports.ProjectPreparationRequest{Ref: project.Ref{ProjectID: "99999999-9999-4999-8999-999999999999", ProfileID: "smoke", ExpectedRevision: 1}, Document: doc, UnitIDs: []string{"app"}, Bindings: map[string]project.Binding{"source": {Key: "source", Kind: "path", LocalLocator: source}}, RuntimePlans: map[string]ports.RuntimeInstallPlan{"sdk": sdkPlan}})
+			doc := project.Document{
+				Requirements: map[string]project.Requirement{"sdk": requirement},
+				Units: map[string]project.Unit{
+					"app": {
+						RequirementIDs: []string{"sdk"},
+						Start:          &project.Command{CWD: project.Path{Binding: "source", RelativePath: "."}},
+					},
+				},
+			}
+			plan, err := preparer.Plan(
+				ctx,
+				ports.ProjectPreparationRequest{
+					Ref: project.Ref{
+						ProjectID:        "99999999-9999-4999-8999-999999999999",
+						ProfileID:        "smoke",
+						ExpectedRevision: 1,
+					},
+					Document: doc,
+					UnitIDs:  []string{"app"},
+					Bindings: map[string]project.Binding{
+						"source": {Key: "source", Kind: "path", LocalLocator: source},
+					},
+					RuntimePlans: map[string]ports.RuntimeInstallPlan{"sdk": sdkPlan},
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,7 +203,8 @@ func TestManagedProjectPreparationSmoke(t *testing.T) {
 			}
 			copyRoot := receipt.Bindings[0].LocalLocator
 			if artifact.Component == "node" {
-				if data, err := os.ReadFile(filepath.Join(copyRoot, "installed.txt")); err != nil || string(data) != "managed-only" {
+				if data, err := os.ReadFile(filepath.Join(copyRoot, "installed.txt")); err != nil ||
+					string(data) != "managed-only" {
 					t.Fatal("npm lifecycle did not use managed copy", err)
 				}
 				if _, err := os.Stat(filepath.Join(source, "installed.txt")); !os.IsNotExist(err) {
@@ -158,7 +216,8 @@ func TestManagedProjectPreparationSmoke(t *testing.T) {
 				if locator != filepath.Join(copyRoot, ".venv", "Scripts", "python.exe") {
 					t.Fatal("venv not selected at its permanent location")
 				}
-				observation, err := environment.NewProbe().Discover(ctx, ports.ProbeRequest{Tool: "python", Executable: locator})
+				observation, err := environment.NewProbe().
+					Discover(ctx, ports.ProbeRequest{Tool: "python", Executable: locator})
 				if err != nil || observation.Version != artifact.Version {
 					t.Fatalf("venv ABI smoke: %+v %v", observation, err)
 				}
@@ -166,7 +225,12 @@ func TestManagedProjectPreparationSmoke(t *testing.T) {
 					t.Fatal("original venv created")
 				}
 			}
-			t.Logf("prepared synthetic %s %s: %d restore steps; original unchanged", artifact.Component, artifact.Version, len(plan.Restores))
+			t.Logf(
+				"prepared synthetic %s %s: %d restore steps; original unchanged",
+				artifact.Component,
+				artifact.Version,
+				len(plan.Restores),
+			)
 			reused, err := provider.Plan(ctx, ports.RuntimeRequest{Requirement: requirement})
 			if err != nil || !reused.AlreadyInstalled {
 				t.Fatalf("preparation mutated shared SDK: %+v %v", reused, err)

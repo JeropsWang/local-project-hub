@@ -14,13 +14,22 @@ import (
 func toolArgs(tool string) (string, []string, error) {
 	switch tool {
 	case "node":
-		return "node.exe", []string{"-p", `JSON.stringify({version:process.versions.node,architecture:process.arch})`}, nil
+		return "node.exe", []string{
+			"-p",
+			`JSON.stringify({version:process.versions.node,architecture:process.arch})`,
+		}, nil
 	case "go":
 		return "go.exe", []string{"version"}, nil
 	case "python":
 		// -I ignores environment options, so bytecode suppression must be an
 		// explicit flag. Otherwise a version query can rewrite bundled .pyc files.
-		return "python.exe", []string{"-I", "-B", "-S", "-c", `import json,sys,sysconfig,struct; print(json.dumps({"version":".".join(map(str,sys.version_info[:3])),"architecture":sysconfig.get_platform().split("-")[-1],"abi":sys.implementation.cache_tag,"executable":sys.executable}))`}, nil
+		return "python.exe", []string{
+			"-I",
+			"-B",
+			"-S",
+			"-c",
+			`import json,sys,sysconfig,struct; print(json.dumps({"version":".".join(map(str,sys.version_info[:3])),"architecture":sysconfig.get_platform().split("-")[-1],"abi":sys.implementation.cache_tag,"executable":sys.executable}))`,
+		}, nil
 	case "java":
 		return "java.exe", []string{"-XshowSettings:properties", "-version"}, nil
 	case "docker":
@@ -28,7 +37,12 @@ func toolArgs(tool string) (string, []string, error) {
 	case "compose":
 		return "docker.exe", []string{"compose", "version", "--format", "json"}, nil
 	case "powershell", "pwsh":
-		return tool + ".exe", []string{"-NoProfile", "-NonInteractive", "-Command", `@{version=$PSVersionTable.PSVersion.ToString();architecture=if([IntPtr]::Size -eq 8){'amd64'}else{'386'}} | ConvertTo-Json -Compress`}, nil
+		return tool + ".exe", []string{
+			"-NoProfile",
+			"-NonInteractive",
+			"-Command",
+			`@{version=$PSVersionTable.PSVersion.ToString();architecture=if([IntPtr]::Size -eq 8){'amd64'}else{'386'}} | ConvertTo-Json -Compress`,
+		}, nil
 	case "postgres":
 		return "postgres.exe", []string{"--version"}, nil
 	case "mysql":
@@ -68,7 +82,14 @@ type versionJSON struct {
 func parseVersion(tool, text, locator string) (version, architecture, abi string, capabilities []string) {
 	var doc versionJSON
 	if json.Unmarshal([]byte(text), &doc) == nil && doc.Version != "" {
-		return strings.TrimPrefix(doc.Version, "v"), normalizeArch(doc.Architecture), doc.ABI, []string{"version-observation"}
+		return strings.TrimPrefix(
+				doc.Version,
+				"v",
+			), normalizeArch(
+				doc.Architecture,
+			), doc.ABI, []string{
+				"version-observation",
+			}
 	}
 	if tool == "docker" {
 		var data struct {
@@ -108,7 +129,8 @@ func parseVersion(tool, text, locator string) (version, architecture, abi string
 			}
 		}
 		if version == "" {
-			banner := regexp.MustCompile(`(?m)^(?:openjdk|java)(?: version)?\s+"?([0-9][0-9A-Za-z._+\-]*)`).FindStringSubmatch(text)
+			banner := regexp.MustCompile(`(?m)^(?:openjdk|java)(?: version)?\s+"?([0-9][0-9A-Za-z._+\-]*)`).
+				FindStringSubmatch(text)
 			if banner != nil {
 				version = banner[1]
 			}

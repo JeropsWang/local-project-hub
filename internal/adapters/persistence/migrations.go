@@ -7,7 +7,18 @@ import (
 )
 
 const currentDBVersion = 3
-const activeStateQuery = `SELECT EXISTS(SELECT 1 FROM runs WHERE state NOT IN ('stopped','failed-start')) OR EXISTS(SELECT 1 FROM tasks WHERE state IN ('queued','running','waiting-user','cancel-requested'))`
+
+const activeStateQuery = `
+SELECT EXISTS(SELECT 1 FROM runs WHERE state NOT IN ('stopped','failed-start'))
+OR EXISTS(SELECT 1 FROM tasks WHERE state IN ('queued','running','waiting-user','cancel-requested'))
+OR EXISTS(
+    SELECT 1 FROM resources
+    WHERE control_grant<>''
+    AND CASE WHEN json_valid(locator_json)
+        THEN json_extract(locator_json,'$.active')=1
+            OR coalesce(json_extract(locator_json,'$.pendingStart'),'')<>''
+        ELSE 1 END
+)`
 
 // schemaCurrent stores only manager state. Business databases are never opened here.
 const schemaCurrent = `

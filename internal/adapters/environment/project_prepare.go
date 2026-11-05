@@ -58,9 +58,24 @@ func NewProjectPreparer(root string, runner ports.PreparationRunner) (*NativePro
 }
 
 // Plan inventories complete selected source roots and declares package installation side effects.
-func (p *NativeProjectPreparer) Plan(ctx context.Context, req ports.ProjectPreparationRequest) (preparation.Plan, error) {
-	plan := preparation.Plan{WorkspaceID: p.workspaceID, Ref: req.Ref, Sources: []preparation.Source{}, Restores: []preparation.Restore{}, RuntimeFingerprints: map[string]string{}, Warnings: []string{"SOURCE_COPY_EXCLUDES_LOCAL_DATA_AND_SECRETS", "DYNAMIC_SCRIPT_INPUTS_REQUIRE_DECLARATIONS"}}
-	if !preparationProjectID.MatchString(string(req.Ref.ProjectID)) || !preparationKey.MatchString(string(req.Ref.ProfileID)) || req.Ref.ExpectedRevision < 1 {
+func (p *NativeProjectPreparer) Plan(
+	ctx context.Context,
+	req ports.ProjectPreparationRequest,
+) (preparation.Plan, error) {
+	plan := preparation.Plan{
+		WorkspaceID:         p.workspaceID,
+		Ref:                 req.Ref,
+		Sources:             []preparation.Source{},
+		Restores:            []preparation.Restore{},
+		RuntimeFingerprints: map[string]string{},
+		Warnings: []string{
+			"SOURCE_COPY_EXCLUDES_LOCAL_DATA_AND_SECRETS",
+			"DYNAMIC_SCRIPT_INPUTS_REQUIRE_DECLARATIONS",
+		},
+	}
+	if !preparationProjectID.MatchString(string(req.Ref.ProjectID)) ||
+		!preparationKey.MatchString(string(req.Ref.ProfileID)) ||
+		req.Ref.ExpectedRevision < 1 {
 		return plan, problem.New("PLAN_REFERENCE_REQUIRED", "")
 	}
 	directories := map[string]map[string]bool{}
@@ -124,7 +139,9 @@ func (p *NativeProjectPreparer) Plan(ctx context.Context, req ports.ProjectPrepa
 				return plan, problem.New("SOURCE_REQUIRED_FILE_MISSING", id)
 			}
 			base := path.Base(file.Path.RelativePath)
-			if base == "package.json" || base == "package-lock.json" || base == "requirements.txt" || base == "go.mod" || base == "pyproject.toml" {
+			if base == "package.json" || base == "package-lock.json" || base == "requirements.txt" ||
+				base == "go.mod" ||
+				base == "pyproject.toml" {
 				directories[key][path.Dir(file.Path.RelativePath)] = true
 			}
 		}
@@ -152,7 +169,10 @@ func (p *NativeProjectPreparer) Plan(ctx context.Context, req ports.ProjectPrepa
 			plan.PreviousRuntimeBindings = append(plan.PreviousRuntimeBindings, binding)
 		}
 	}
-	sort.Slice(plan.PreviousRuntimeBindings, func(i, j int) bool { return plan.PreviousRuntimeBindings[i].Key < plan.PreviousRuntimeBindings[j].Key })
+	sort.Slice(
+		plan.PreviousRuntimeBindings,
+		func(i, j int) bool { return plan.PreviousRuntimeBindings[i].Key < plan.PreviousRuntimeBindings[j].Key },
+	)
 	for _, restore := range plan.Restores {
 		if plan.RuntimeFingerprints[restore.RequirementID] == "" {
 			return plan, problem.New("RUNTIME_PREPARATION_REQUIRED", restore.RequirementID)
@@ -172,19 +192,31 @@ func (p *NativeProjectPreparer) Plan(ctx context.Context, req ports.ProjectPrepa
 	return plan, nil
 }
 
-func planRestores(plan *preparation.Plan, binding project.Binding, dir string, files []preparation.File, components map[string]string) error {
+func planRestores(
+	plan *preparation.Plan,
+	binding project.Binding,
+	dir string,
+	files []preparation.File,
+	components map[string]string,
+) error {
 	has := func(name string) bool {
 		return slices.ContainsFunc(files, func(f preparation.File) bool { return f.Path == path.Join(dir, name) })
 	}
 	cwd := project.Path{Binding: binding.Key, RelativePath: dir}
 	add := func(key, tool, effect string, args ...string) {
-		plan.Restores = append(plan.Restores, preparation.Restore{RequirementID: key, Tool: tool, Directory: cwd, Effect: effect, Args: args})
+		plan.Restores = append(
+			plan.Restores,
+			preparation.Restore{RequirementID: key, Tool: tool, Directory: cwd, Effect: effect, Args: args},
+		)
 	}
 	if key := components["node"]; key != "" && has("package.json") {
 		if !has("package-lock.json") {
 			return problem.New("NODE_LOCKFILE_REQUIRED", binding.Key+":"+dir)
 		}
-		data, err := readSmallRegularFile(filepath.Join(binding.LocalLocator, filepath.FromSlash(path.Join(dir, "package-lock.json"))), 16*1024*1024)
+		data, err := readSmallRegularFile(
+			filepath.Join(binding.LocalLocator, filepath.FromSlash(path.Join(dir, "package-lock.json"))),
+			16*1024*1024,
+		)
 		if err != nil {
 			return err
 		}
@@ -205,7 +237,21 @@ func planRestores(plan *preparation.Plan, binding project.Binding, dir string, f
 			if has("requirements.txt") {
 				// Requirements can invoke build backends. This is an explicit install
 				// effect and is never part of a read-only environment check.
-				add(key, "venv-python", "package-install-scripts", "-I", "-B", "-m", "pip", "--isolated", "install", "--disable-pip-version-check", "--no-input", "-r", "requirements.txt")
+				add(
+					key,
+					"venv-python",
+					"package-install-scripts",
+					"-I",
+					"-B",
+					"-m",
+					"pip",
+					"--isolated",
+					"install",
+					"--disable-pip-version-check",
+					"--no-input",
+					"-r",
+					"requirements.txt",
+				)
 				plan.Warnings = append(plan.Warnings, "PYTHON_REQUIREMENTS_MAY_NOT_PIN_TRANSITIVE_DEPENDENCIES")
 			}
 			add(key, "venv-python", "verify-dependencies", "-I", "-B", "-m", "pip", "--isolated", "check")
@@ -219,11 +265,17 @@ func planRestores(plan *preparation.Plan, binding project.Binding, dir string, f
 }
 
 // Prepare leaves no active selection on failure; only a complete receipt can be activated.
-func (p *NativeProjectPreparer) Prepare(ctx context.Context, plan preparation.Plan, runtimes map[string]ports.RuntimeLocation) (preparation.Receipt, error) {
+func (p *NativeProjectPreparer) Prepare(
+	ctx context.Context,
+	plan preparation.Plan,
+	runtimes map[string]ports.RuntimeLocation,
+) (preparation.Receipt, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var receipt preparation.Receipt
-	if plan.WorkspaceID != p.workspaceID || plan.Fingerprint != sourcePlanFingerprint(plan) || !preparationProjectID.MatchString(string(plan.Ref.ProjectID)) || !preparationKey.MatchString(string(plan.Ref.ProfileID)) {
+	if plan.WorkspaceID != p.workspaceID || plan.Fingerprint != sourcePlanFingerprint(plan) ||
+		!preparationProjectID.MatchString(string(plan.Ref.ProjectID)) ||
+		!preparationKey.MatchString(string(plan.Ref.ProfileID)) {
 		return receipt, problem.New("SOURCE_PLAN_STALE", "")
 	}
 	for _, source := range plan.Sources {
@@ -266,7 +318,15 @@ func (p *NativeProjectPreparer) Prepare(ctx context.Context, plan preparation.Pl
 			_ = anchor.RemoveAll(relative)
 		}
 	}()
-	receipt = preparation.Receipt{WorkspaceID: p.workspaceID, Ref: plan.Ref, Root: filepath.Join(p.root, filepath.FromSlash(relative)), State: "preparing", PlanFingerprint: plan.Fingerprint, Bindings: []project.Binding{}, OriginalBindings: []project.Binding{}}
+	receipt = preparation.Receipt{
+		WorkspaceID:      p.workspaceID,
+		Ref:              plan.Ref,
+		Root:             filepath.Join(p.root, filepath.FromSlash(relative)),
+		State:            "preparing",
+		PlanFingerprint:  plan.Fingerprint,
+		Bindings:         []project.Binding{},
+		OriginalBindings: []project.Binding{},
+	}
 	for _, source := range plan.Sources {
 		destination := path.Join(relative, "sources", source.Binding.Key)
 		if err := copySource(ctx, anchor, destination, source); err != nil {
@@ -281,7 +341,14 @@ func (p *NativeProjectPreparer) Prepare(ctx context.Context, plan preparation.Pl
 			}
 		}
 		receipt.OriginalBindings = append(receipt.OriginalBindings, source.Binding)
-		receipt.Bindings = append(receipt.Bindings, project.Binding{Key: source.Binding.Key, Kind: "path", LocalLocator: filepath.Join(p.root, filepath.FromSlash(destination))})
+		receipt.Bindings = append(
+			receipt.Bindings,
+			project.Binding{
+				Key:          source.Binding.Key,
+				Kind:         "path",
+				LocalLocator: filepath.Join(p.root, filepath.FromSlash(destination)),
+			},
+		)
 	}
 	receipt.OriginalBindings = append(receipt.OriginalBindings, plan.PreviousRuntimeBindings...)
 	keys := []string{}
@@ -290,7 +357,10 @@ func (p *NativeProjectPreparer) Prepare(ctx context.Context, plan preparation.Pl
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		receipt.Bindings = append(receipt.Bindings, project.Binding{Key: key, Kind: "runtime", LocalLocator: runtimes[key].Executable})
+		receipt.Bindings = append(
+			receipt.Bindings,
+			project.Binding{Key: key, Kind: "runtime", LocalLocator: runtimes[key].Executable},
+		)
 	}
 	if err := writePreparationReceipt(anchor, relative, receipt); err != nil {
 		return preparation.Receipt{}, err
@@ -327,7 +397,13 @@ func (p *NativeProjectPreparer) Prepare(ctx context.Context, plan preparation.Pl
 			}
 			for _, binding := range receipt.Bindings {
 				if binding.Key == restore.Directory.Binding {
-					receipt.Bindings[i].LocalLocator = filepath.Join(binding.LocalLocator, filepath.FromSlash(restore.Directory.RelativePath), ".venv", "Scripts", "python.exe")
+					receipt.Bindings[i].LocalLocator = filepath.Join(
+						binding.LocalLocator,
+						filepath.FromSlash(restore.Directory.RelativePath),
+						".venv",
+						"Scripts",
+						"python.exe",
+					)
 				}
 			}
 		}
@@ -340,7 +416,11 @@ func (p *NativeProjectPreparer) Prepare(ctx context.Context, plan preparation.Pl
 	return receipt, nil
 }
 
-func preparationCommand(receipt preparation.Receipt, restore preparation.Restore, runtimes map[string]ports.RuntimeLocation) (ports.PreparationCommand, error) {
+func preparationCommand(
+	receipt preparation.Receipt,
+	restore preparation.Restore,
+	runtimes map[string]ports.RuntimeLocation,
+) (ports.PreparationCommand, error) {
 	var root string
 	for _, binding := range receipt.Bindings {
 		if binding.Key == restore.Directory.Binding {
@@ -367,10 +447,16 @@ func preparationCommand(receipt preparation.Receipt, restore preparation.Restore
 	}
 	cache := filepath.Join(receipt.Root, "cache")
 	env := map[string]string{
-		"NPM_CONFIG_CACHE": filepath.Join(cache, "npm"), "NPM_CONFIG_USERCONFIG": filepath.Join(cache, "npmrc"), "NPM_CONFIG_GLOBALCONFIG": filepath.Join(cache, "global-npmrc"),
+		"NPM_CONFIG_CACHE": filepath.Join(
+			cache,
+			"npm",
+		), "NPM_CONFIG_USERCONFIG": filepath.Join(cache, "npmrc"), "NPM_CONFIG_GLOBALCONFIG": filepath.Join(cache, "global-npmrc"),
 		"PIP_CACHE_DIR": filepath.Join(cache, "pip"), "PIP_CONFIG_FILE": "NUL", "PYTHONNOUSERSITE": "1",
 		"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": filepath.Join(cache, "python-bytecode"),
-		"GOCACHE": filepath.Join(cache, "go-build"), "GOMODCACHE": filepath.Join(cache, "go-mod"), "GOPATH": filepath.Join(cache, "go"), "GOTOOLCHAIN": "local", "GOWORK": "off", "GOFLAGS": "-mod=readonly", "GOENV": "off",
+		"GOCACHE": filepath.Join(
+			cache,
+			"go-build",
+		), "GOMODCACHE": filepath.Join(cache, "go-mod"), "GOPATH": filepath.Join(cache, "go"), "GOTOOLCHAIN": "local", "GOWORK": "off", "GOFLAGS": "-mod=readonly", "GOENV": "off",
 	}
 	// Child-only PATH includes the pinned SDKs; no global process environment is changed.
 	keys := []string{}
@@ -383,7 +469,14 @@ func preparationCommand(receipt preparation.Receipt, restore preparation.Restore
 		paths = append(paths, filepath.Dir(runtimes[key].Executable))
 	}
 	env["PATH"] = strings.Join(paths, string(os.PathListSeparator))
-	return ports.PreparationCommand{Executable: program, Args: args, CWD: cwd, OwnedRoot: receipt.Root, Environment: env, Timeout: 20 * time.Minute}, nil
+	return ports.PreparationCommand{
+		Executable:  program,
+		Args:        args,
+		CWD:         cwd,
+		OwnedRoot:   receipt.Root,
+		Environment: env,
+		Timeout:     20 * time.Minute,
+	}, nil
 }
 
 func writePreparationReceipt(anchor *os.Root, relative string, receipt preparation.Receipt) error {
@@ -412,5 +505,6 @@ func pathInside(root, candidate string) bool {
 		return false
 	}
 	relative, err := filepath.Rel(root, candidate)
-	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
+		!filepath.IsAbs(relative)
 }

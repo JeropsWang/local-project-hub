@@ -22,11 +22,23 @@ func TestTaskEventsAndRequestIdentitySurviveReopen(t *testing.T) {
 		}
 	})
 	store := repo.(ports.TaskRepository)
-	plan := task.Plan{ID: "11111111-1111-4111-8111-111111111111", Kind: task.Prepare, WorkspaceID: repo.Info().WorkspaceID, Fingerprint: "synthetic-plan", CreatedAt: time.Now().UTC()}
+	plan := task.Plan{
+		ID:          "11111111-1111-4111-8111-111111111111",
+		Kind:        task.Prepare,
+		WorkspaceID: repo.Info().WorkspaceID,
+		Fingerprint: "synthetic-plan",
+		CreatedAt:   time.Now().UTC(),
+	}
 	if err := store.SavePlan(ctx, plan); err != nil {
 		t.Fatal(err)
 	}
-	record := task.Record{View: task.View{ID: "22222222-2222-4222-8222-222222222222", Kind: task.Prepare}, PlanID: plan.ID, RequestID: "request", RequestHash: "fixed-request-hash", CreatedAt: time.Now().UTC()}
+	record := task.Record{
+		View:        task.View{ID: "22222222-2222-4222-8222-222222222222", Kind: task.Prepare},
+		PlanID:      plan.ID,
+		RequestID:   "request",
+		RequestHash: "fixed-request-hash",
+		CreatedAt:   time.Now().UTC(),
+	}
 	created, err := store.CreateTask(ctx, record)
 	if err != nil {
 		t.Fatal(err)

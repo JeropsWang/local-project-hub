@@ -176,7 +176,7 @@ Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
 以下是测试名及关键断言片段；夹具在列出的测试文件内构建，输入使用仓库脱敏示例，不依赖真实工程。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestComposeIdentityAndFileOrder(t *testing.T) {
@@ -189,21 +189,21 @@ func TestExternalResourcesAndStopTimeout(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证红灯**
+- [x] **Step 2: 验证红灯**
 
 Run: `go test ./internal/adapters/docker ./internal/application`
 Expected: FAIL，缺少下述接口或行为；不能因测试环境损坏而把失败当成有效红灯。
 
-- [ ] **Step 3: 实现本任务接口**
+- [x] **Step 3: 实现本任务接口**
 
 Inventory 读取引擎身份/Compose标签/实例状态，展示待归属资源，不凭名称接管。新建project按工程设计推导；既有栈必须校验本机绑定、源/运行目录差异、服务与配置指纹。固定命令参数保留 Compose文件顺序，配置解析不展开或记录秘密。使用引擎配置 StopSignal 发正常信号并等待，不能调用会到时SIGKILL的默认stop行为。禁止 down -v、remove-orphans 和数据升级。共享资源通过显式授权及引用计数处理，UUID匹配不是授权。
 
-- [ ] **Step 4: 验证绿灯**
+- [x] **Step 4: 验证绿灯**
 
 Run: `go test ./internal/adapters/docker ./internal/application`
 Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 显式暂存本任务 Files 中的实现与测试，检查无本机数据后执行 `git commit -m "feat: track Docker ownership and graceful stops"`。
 

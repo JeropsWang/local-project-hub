@@ -57,7 +57,12 @@ func processFixture(t *testing.T, mode string) (*nativeprocess.NativeProcessAdap
 		t.Fatal(err)
 	}
 	source := t.TempDir()
-	spec := ports.ProcessSpec{RunID: runID, UnitID: "fixture", Command: ports.ProcessCommand{Executable: controlHelper, Args: []string{"--mode", mode}, CWD: source}, Stop: ports.StopSpec{Kind: "managed-pipe"}}
+	spec := ports.ProcessSpec{
+		RunID:   runID,
+		UnitID:  "fixture",
+		Command: ports.ProcessCommand{Executable: controlHelper, Args: []string{"--mode", mode}, CWD: source},
+		Stop:    ports.StopSpec{Kind: "managed-pipe"},
+	}
 	t.Cleanup(func() {
 		_ = os.WriteFile(filepath.Join(source, "release"), []byte("fixture cleanup"), 0600)
 		deadline := time.Now().Add(4 * time.Second)
@@ -110,7 +115,8 @@ func TestPIDReuseAndParentExitAreNotCompletion(t *testing.T) {
 	}
 	wrong := instance
 	wrong.CreationTime = "1"
-	if _, err := adapter.Stop(context.Background(), wrong, stopRequest()); err == nil || err.Error() != "INSTANCE_IDENTITY_MISMATCH" {
+	if _, err := adapter.Stop(context.Background(), wrong, stopRequest()); err == nil ||
+		err.Error() != "INSTANCE_IDENTITY_MISMATCH" {
 		t.Fatalf("wrong process controlled: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(spec.Command.CWD, "saved.txt")); !os.IsNotExist(err) {
@@ -214,8 +220,14 @@ func TestStopUsesOriginalScriptAndRedactsLogs(t *testing.T) {
 	adapter, spec, root := processFixture(t, "script-stop")
 	bytes := []byte("original snapshot")
 	digest := sha256.Sum256(bytes)
-	spec.Scripts = map[string]ports.ProcessScript{"stop": {Name: "stop.mjs", Bytes: bytes, SHA256: hex.EncodeToString(digest[:])}}
-	command := ports.ProcessCommand{Executable: spec.Command.Executable, CWD: spec.Command.CWD, Args: []string{"--signal", "${file:stop}"}}
+	spec.Scripts = map[string]ports.ProcessScript{
+		"stop": {Name: "stop.mjs", Bytes: bytes, SHA256: hex.EncodeToString(digest[:])},
+	}
+	command := ports.ProcessCommand{
+		Executable: spec.Command.Executable,
+		CWD:        spec.Command.CWD,
+		Args:       []string{"--signal", "${file:stop}"},
+	}
 	spec.Stop = ports.StopSpec{Kind: "command", Command: &command}
 	spec.Command.Environment = map[string]string{"FAKE_SECRET": "fixture-process-secret"}
 	spec.SecretValues = []string{"fixture-process-secret"}
@@ -270,7 +282,8 @@ func TestStopWaitTimeoutDoesNotCancelAcceptedSave(t *testing.T) {
 	if err != nil || !result.Graceful {
 		t.Fatalf("accepted save was cancelled or repeated: %+v %v", result, err)
 	}
-	if data, err := os.ReadFile(filepath.Join(spec.Command.CWD, "saved.txt")); err != nil || string(data) != "synthetic save completed" {
+	if data, err := os.ReadFile(filepath.Join(spec.Command.CWD, "saved.txt")); err != nil ||
+		string(data) != "synthetic save completed" {
 		t.Fatal("final save missing", err)
 	}
 }
@@ -279,8 +292,14 @@ func TestChangedRunSnapshotIsNotExecutedAsOriginalStop(t *testing.T) {
 	adapter, spec, root := processFixture(t, "script-stop")
 	bytes := []byte("original snapshot")
 	digest := sha256.Sum256(bytes)
-	spec.Scripts = map[string]ports.ProcessScript{"stop": {Name: "stop.mjs", Bytes: bytes, SHA256: hex.EncodeToString(digest[:])}}
-	command := ports.ProcessCommand{Executable: spec.Command.Executable, CWD: spec.Command.CWD, Args: []string{"--signal", "${file:stop}"}}
+	spec.Scripts = map[string]ports.ProcessScript{
+		"stop": {Name: "stop.mjs", Bytes: bytes, SHA256: hex.EncodeToString(digest[:])},
+	}
+	command := ports.ProcessCommand{
+		Executable: spec.Command.Executable,
+		CWD:        spec.Command.CWD,
+		Args:       []string{"--signal", "${file:stop}"},
+	}
 	spec.Stop = ports.StopSpec{Kind: "command", Command: &command}
 	instance, err := adapter.Start(context.Background(), spec)
 	if err != nil {

@@ -78,7 +78,14 @@ func main() {
 	if err != nil {
 		os.Exit(2)
 	}
-	listener, err := winio.ListenPipe(pipe, &winio.PipeConfig{SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;" + user.User.Sid.String() + ")", InputBufferSize: control.MaxFrame, OutputBufferSize: control.MaxFrame})
+	listener, err := winio.ListenPipe(
+		pipe,
+		&winio.PipeConfig{
+			SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;" + user.User.Sid.String() + ")",
+			InputBufferSize:    control.MaxFrame,
+			OutputBufferSize:   control.MaxFrame,
+		},
+	)
 	if err != nil {
 		os.Exit(2)
 	}
@@ -104,7 +111,13 @@ func main() {
 			if err != nil {
 				return
 			}
-			response := control.Response{ProtocolVersion: "1.0", RunID: runID, OperationID: request.OperationID, Kind: "status", State: "running"}
+			response := control.Response{
+				ProtocolVersion: "1.0",
+				RunID:           runID,
+				OperationID:     request.OperationID,
+				Kind:            "status",
+				State:           "running",
+			}
 			write := func() { bytes, _ := json.Marshal(response); _, _ = connection.Write(append(bytes, '\n')) }
 			expected := token
 			if *mode == "wrong-token" {

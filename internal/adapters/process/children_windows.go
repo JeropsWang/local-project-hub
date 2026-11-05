@@ -47,7 +47,13 @@ func businessJobProcesses(job windows.Handle) (uint32, uint32, error) {
 		TotalTerminatedProcesses uint32
 	}
 	var returned uint32
-	err := windows.QueryInformationJobObject(job, windows.JobObjectBasicAccountingInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)), &returned)
+	err := windows.QueryInformationJobObject(
+		job,
+		windows.JobObjectBasicAccountingInformation,
+		uintptr(unsafe.Pointer(&info)),
+		uint32(unsafe.Sizeof(info)),
+		&returned,
+	)
 	return info.ActiveProcesses, info.TotalProcesses, err
 }
 
@@ -112,7 +118,13 @@ func (t *jobTracker) observe() {
 			t.mu.Unlock()
 			continue
 		}
-		identity := strconv.FormatUint(uint64(pid), 10) + ":" + strconv.FormatUint(uint64(creation.HighDateTime)<<32|uint64(creation.LowDateTime), 10)
+		identity := strconv.FormatUint(
+			uint64(pid),
+			10,
+		) + ":" + strconv.FormatUint(
+			uint64(creation.HighDateTime)<<32|uint64(creation.LowDateTime),
+			10,
+		)
 		if t.seen[identity] {
 			windows.CloseHandle(handle)
 		} else {

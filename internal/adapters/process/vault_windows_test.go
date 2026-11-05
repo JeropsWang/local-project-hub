@@ -19,7 +19,13 @@ func TestControlCredentialUsesCurrentUserProtectionAndRunEntropy(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer anchor.Close()
-	identity := run.Identity{Kind: "process", PID: 123, CreationTime: "fixture", Executable: `C:\fixture.exe`, ControlID: fixtureControlRun}
+	identity := run.Identity{
+		Kind:         "process",
+		PID:          123,
+		CreationTime: "fixture",
+		Executable:   `C:\fixture.exe`,
+		ControlID:    fixtureControlRun,
+	}
 	if err := saveControl(anchor, identity, fixtureControlToken); err != nil {
 		t.Fatal(err)
 	}

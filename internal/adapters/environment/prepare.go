@@ -69,7 +69,12 @@ func NewRuntimeProvider(root string, catalog RuntimeCatalog, client *http.Client
 		}
 		return nil
 	}
-	provider := &NativeRuntimeProvider{root: filepath.Clean(root), workspaceID: doc.WorkspaceID, artifacts: map[string]RuntimeArtifact{}, client: &clone}
+	provider := &NativeRuntimeProvider{
+		root:        filepath.Clean(root),
+		workspaceID: doc.WorkspaceID,
+		artifacts:   map[string]RuntimeArtifact{},
+		client:      &clone,
+	}
 	for _, artifact := range catalog.Artifacts {
 		provider.artifacts[artifact.ID] = artifact
 	}
@@ -96,7 +101,15 @@ func (p *NativeRuntimeProvider) Plan(ctx context.Context, req ports.RuntimeReque
 		if component != actualComponent {
 			continue
 		}
-		item, _ := versions.Evaluate(req.Requirement, ports.Observation{Version: version, Architecture: artifact.Architecture, ABI: artifact.ABI, Evidence: check.Evidence{Kind: "metadata", Source: artifact.Source}})
+		item, _ := versions.Evaluate(
+			req.Requirement,
+			ports.Observation{
+				Version:      version,
+				Architecture: artifact.Architecture,
+				ABI:          artifact.ABI,
+				Evidence:     check.Evidence{Kind: "metadata", Source: artifact.Source},
+			},
+		)
 		if item.Status == check.Satisfied {
 			compatible := true
 			for _, constraint := range req.Constraints {
@@ -106,7 +119,10 @@ func (p *NativeRuntimeProvider) Plan(ctx context.Context, req ports.RuntimeReque
 				extra := req.Requirement
 				extra.Semantics = constraint.Semantics
 				extra.Range = constraint.Range
-				verdict, _ := versions.Evaluate(extra, ports.Observation{Version: version, Architecture: artifact.Architecture, ABI: artifact.ABI})
+				verdict, _ := versions.Evaluate(
+					extra,
+					ports.Observation{Version: version, Architecture: artifact.Architecture, ABI: artifact.ABI},
+				)
 				if verdict.Status != check.Satisfied {
 					compatible = false
 					break
@@ -144,21 +160,37 @@ func preferredRuntime(version, preferred string) bool {
 	if preferred == "" {
 		return false
 	}
-	return version == preferred || len(preferred) < len(version) && version[:len(preferred)] == preferred && version[len(preferred)] == '.'
+	return version == preferred ||
+		len(preferred) < len(version) && version[:len(preferred)] == preferred && version[len(preferred)] == '.'
 }
 
 func (p *NativeRuntimeProvider) installPlan(artifact RuntimeArtifact) ports.RuntimeInstallPlan {
-	destination := filepath.Join(p.root, "runtimes", artifact.Component, artifact.Version+"-windows-"+artifact.Architecture)
+	destination := filepath.Join(
+		p.root,
+		"runtimes",
+		artifact.Component,
+		artifact.Version+"-windows-"+artifact.Architecture,
+	)
 	data, _ := json.Marshal(struct {
 		WorkspaceID, Root string
 		Artifact          RuntimeArtifact
 	}{p.workspaceID, p.root, artifact})
 	sum := sha256.Sum256(data)
-	return ports.RuntimeInstallPlan{ArtifactID: artifact.ID, Component: artifact.Component, Version: artifact.Version, Architecture: artifact.Architecture, Destination: destination, Fingerprint: hex.EncodeToString(sum[:])}
+	return ports.RuntimeInstallPlan{
+		ArtifactID:   artifact.ID,
+		Component:    artifact.Component,
+		Version:      artifact.Version,
+		Architecture: artifact.Architecture,
+		Destination:  destination,
+		Fingerprint:  hex.EncodeToString(sum[:]),
+	}
 }
 
 // Install re-derives every location/source from the catalog and publishes only complete validated SDKs.
-func (p *NativeRuntimeProvider) Install(ctx context.Context, plan ports.RuntimeInstallPlan) (ports.RuntimeLocation, error) {
+func (p *NativeRuntimeProvider) Install(
+	ctx context.Context,
+	plan ports.RuntimeInstallPlan,
+) (ports.RuntimeLocation, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	artifact, ok := p.artifacts[plan.ArtifactID]
@@ -166,7 +198,10 @@ func (p *NativeRuntimeProvider) Install(ctx context.Context, plan ports.RuntimeI
 		return ports.RuntimeLocation{}, problem.New("RUNTIME_PLAN_STALE", "")
 	}
 	expected := p.installPlan(artifact)
-	if plan.Fingerprint != expected.Fingerprint || plan.Destination != expected.Destination || plan.Component != expected.Component || plan.Version != expected.Version || plan.Architecture != expected.Architecture {
+	if plan.Fingerprint != expected.Fingerprint || plan.Destination != expected.Destination ||
+		plan.Component != expected.Component ||
+		plan.Version != expected.Version ||
+		plan.Architecture != expected.Architecture {
 		return ports.RuntimeLocation{}, problem.New("RUNTIME_PLAN_STALE", "")
 	}
 	if existing, err := p.installed(ctx, artifact); err == nil && existing.Root != "" {
@@ -177,7 +212,9 @@ func (p *NativeRuntimeProvider) Install(ctx context.Context, plan ports.RuntimeI
 		return ports.RuntimeLocation{}, err
 	}
 	defer anchor.Close()
-	final := filepath.ToSlash(filepath.Join("runtimes", artifact.Component, artifact.Version+"-windows-"+artifact.Architecture))
+	final := filepath.ToSlash(
+		filepath.Join("runtimes", artifact.Component, artifact.Version+"-windows-"+artifact.Architecture),
+	)
 	if _, err := anchor.Lstat(final); !os.IsNotExist(err) {
 		return ports.RuntimeLocation{}, problem.New("RUNTIME_INSTALL_CONFLICT", "")
 	}
@@ -211,7 +248,12 @@ func (p *NativeRuntimeProvider) Install(ctx context.Context, plan ports.RuntimeI
 	if err != nil || !info.Mode().IsRegular() {
 		return ports.RuntimeLocation{}, problem.New("RUNTIME_EXECUTABLE_MISSING", "")
 	}
-	state := installedRuntime{ArtifactID: artifact.ID, ArtifactSHA256: artifact.SHA256, Fingerprint: expected.Fingerprint, Files: files}
+	state := installedRuntime{
+		ArtifactID:     artifact.ID,
+		ArtifactSHA256: artifact.SHA256,
+		Fingerprint:    expected.Fingerprint,
+		Files:          files,
+	}
 	stateData, err := json.Marshal(state)
 	if err != nil {
 		return ports.RuntimeLocation{}, err
@@ -238,16 +280,30 @@ type installedRuntime struct {
 
 func (p *NativeRuntimeProvider) location(artifact RuntimeArtifact) ports.RuntimeLocation {
 	plan := p.installPlan(artifact)
-	return ports.RuntimeLocation{Root: plan.Destination, Executable: filepath.Join(plan.Destination, filepath.FromSlash(artifact.Executable)), Component: artifact.Component, Version: artifact.Version, Architecture: artifact.Architecture, ABI: artifact.ABI, Fingerprint: plan.Fingerprint}
+	return ports.RuntimeLocation{
+		Root:         plan.Destination,
+		Executable:   filepath.Join(plan.Destination, filepath.FromSlash(artifact.Executable)),
+		Component:    artifact.Component,
+		Version:      artifact.Version,
+		Architecture: artifact.Architecture,
+		ABI:          artifact.ABI,
+		Fingerprint:  plan.Fingerprint,
+	}
 }
-func (p *NativeRuntimeProvider) installed(ctx context.Context, artifact RuntimeArtifact) (ports.RuntimeLocation, error) {
+
+func (p *NativeRuntimeProvider) installed(
+	ctx context.Context,
+	artifact RuntimeArtifact,
+) (ports.RuntimeLocation, error) {
 	plan := p.installPlan(artifact)
 	data, err := readSmallRegularFile(filepath.Join(plan.Destination, runtimeMarker), 16*1024*1024)
 	if err != nil {
 		return ports.RuntimeLocation{}, err
 	}
 	var state installedRuntime
-	if json.Unmarshal(data, &state) != nil || len(state.Files) == 0 || state.ArtifactID != artifact.ID || state.ArtifactSHA256 != artifact.SHA256 || state.Fingerprint != plan.Fingerprint {
+	if json.Unmarshal(data, &state) != nil || len(state.Files) == 0 || state.ArtifactID != artifact.ID ||
+		state.ArtifactSHA256 != artifact.SHA256 ||
+		state.Fingerprint != plan.Fingerprint {
 		return ports.RuntimeLocation{}, problem.New("RUNTIME_INTEGRITY_MISMATCH", "")
 	}
 	anchor, err := os.OpenRoot(plan.Destination)
@@ -260,7 +316,8 @@ func (p *NativeRuntimeProvider) installed(ctx context.Context, artifact RuntimeA
 		if err := ctx.Err(); err != nil {
 			return ports.RuntimeLocation{}, err
 		}
-		if project.ValidateRelativePath(file.Path) != nil || len(file.SHA256) != 64 || file.Size < 0 || file.Size > maxRuntimeFile {
+		if project.ValidateRelativePath(file.Path) != nil || len(file.SHA256) != 64 || file.Size < 0 ||
+			file.Size > maxRuntimeFile {
 			return ports.RuntimeLocation{}, problem.New("RUNTIME_INTEGRITY_MISMATCH", "")
 		}
 		info, err := anchor.Lstat(file.Path)

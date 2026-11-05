@@ -26,7 +26,11 @@ func PrepareProjectWith(preparer ports.ProjectPreparer) PrepareOption {
 }
 
 // NewPrepareExecutor receives the workspace-scoped SDK adapter through its port.
-func NewPrepareExecutor(ws *WorkspaceService, provider ports.RuntimeProvider, options ...PrepareOption) *PrepareExecutor {
+func NewPrepareExecutor(
+	ws *WorkspaceService,
+	provider ports.RuntimeProvider,
+	options ...PrepareOption,
+) *PrepareExecutor {
 	e := &PrepareExecutor{workspaces: ws, provider: provider}
 	for _, option := range options {
 		option(e)
@@ -59,7 +63,8 @@ func (e *PrepareExecutor) Execute(ctx context.Context, plan task.Plan, control p
 			return err
 		}
 		if step.Action == "prepare-project" {
-			if e.projects == nil || plan.ProjectPreparation == nil || step.InputFingerprints["source"] != plan.ProjectPreparation.Fingerprint {
+			if e.projects == nil || plan.ProjectPreparation == nil ||
+				step.InputFingerprints["source"] != plan.ProjectPreparation.Fingerprint {
 				return problem.New("SOURCE_PLAN_STALE", "")
 			}
 			if err := control.Progress(ctx, task.EventData{Code: "PROJECT_PREPARATION_STARTED", StepID: step.ID}); err != nil {
@@ -102,7 +107,10 @@ func (e *PrepareExecutor) Execute(ctx context.Context, plan task.Plan, control p
 		if !ok {
 			return problem.New("REQUIREMENT_MISSING", step.RequirementID)
 		}
-		runtimePlan, err := e.provider.Plan(ctx, ports.RuntimeRequest{Requirement: requirement, Constraints: plan.SourceConstraints})
+		runtimePlan, err := e.provider.Plan(
+			ctx,
+			ports.RuntimeRequest{Requirement: requirement, Constraints: plan.SourceConstraints},
+		)
 		if err != nil {
 			return err
 		}
@@ -152,7 +160,11 @@ func (e *PrepareExecutor) Execute(ctx context.Context, plan task.Plan, control p
 
 // Only disposable preparation work receives cancellation during an operation.
 // Existing project shutdown/save operations use their own wait-policy coordination.
-func withPreparationCancellation(ctx context.Context, control ports.TaskControl, operation func(context.Context) error) error {
+func withPreparationCancellation(
+	ctx context.Context,
+	control ports.TaskControl,
+	operation func(context.Context) error,
+) error {
 	child, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	done := make(chan struct{})

@@ -29,7 +29,11 @@ func (r fixtureRestore) Run(ctx context.Context, command ports.PreparationComman
 	if r.fail {
 		return ports.PreparationResult{}, problem.New("DEPENDENCY_RESTORE_FAILED", "")
 	}
-	return ports.PreparationResult{}, os.WriteFile(filepath.Join(command.CWD, "restored.txt"), []byte("managed dependencies"), 0600)
+	return ports.PreparationResult{}, os.WriteFile(
+		filepath.Join(command.CWD, "restored.txt"),
+		[]byte("managed dependencies"),
+		0600,
+	)
 }
 
 // The source/runtime selection must commit together only after the full restore succeeds.
@@ -53,7 +57,13 @@ func TestProjectPreparationActivatesOnlyCompleteEnvironment(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			view, err := projects.Register(ctx, application.RegisterProjectRequest{Document: doc, Bindings: []project.Binding{{Key: "source", Kind: "path", LocalLocator: source}}})
+			view, err := projects.Register(
+				ctx,
+				application.RegisterProjectRequest{
+					Document: doc,
+					Bindings: []project.Binding{{Key: "source", Kind: "path", LocalLocator: source}},
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,8 +79,20 @@ func TestProjectPreparationActivatesOnlyCompleteEnvironment(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			plans := application.NewPlanService(ws, application.NewCheckService(ws, &boundedProbe{}, noFiles{}, nil), application.WithRuntimeProvider(provider), application.WithProjectPreparer(preparer))
-			plan, err := plans.BuildPrepare(ctx, application.ProfileRef{ProjectID: application.ProjectID(doc.ProjectID), ProfileID: "development", ExpectedRevision: view.Revision})
+			plans := application.NewPlanService(
+				ws,
+				application.NewCheckService(ws, &boundedProbe{}, noFiles{}, nil),
+				application.WithRuntimeProvider(provider),
+				application.WithProjectPreparer(preparer),
+			)
+			plan, err := plans.BuildPrepare(
+				ctx,
+				application.ProfileRef{
+					ProjectID:        application.ProjectID(doc.ProjectID),
+					ProfileID:        "development",
+					ExpectedRevision: view.Revision,
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -80,7 +102,14 @@ func TestProjectPreparationActivatesOnlyCompleteEnvironment(t *testing.T) {
 			executor := application.NewPrepareExecutor(ws, provider, application.PrepareProjectWith(preparer))
 			service := application.NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Prepare: executor})
 			t.Cleanup(func() { _ = service.Close(ctx) })
-			job, err := service.Submit(ctx, application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "copy-and-prepare"})
+			job, err := service.Submit(
+				ctx,
+				application.SubmitPlanRequest{
+					PlanID:      plan.ID,
+					Fingerprint: plan.Fingerprint,
+					RequestID:   "copy-and-prepare",
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +129,8 @@ func TestProjectPreparationActivatesOnlyCompleteEnvironment(t *testing.T) {
 				if bound.LocalLocator == source {
 					t.Fatal("successful restore not selected")
 				}
-				if got, err := os.ReadFile(filepath.Join(bound.LocalLocator, "restored.txt")); err != nil || string(got) != "managed dependencies" {
+				if got, err := os.ReadFile(filepath.Join(bound.LocalLocator, "restored.txt")); err != nil ||
+					string(got) != "managed dependencies" {
 					t.Fatal("incomplete copy selected", err)
 				}
 			}
@@ -123,11 +153,25 @@ func TestProjectPreparationActivatesOnlyCompleteEnvironment(t *testing.T) {
 }
 
 func (p *preparedRuntime) Plan(context.Context, ports.RuntimeRequest) (ports.RuntimeInstallPlan, error) {
-	return ports.RuntimeInstallPlan{ArtifactID: "synthetic-node", Component: "node", Version: "22.19.0", Architecture: "amd64", Destination: p.root, Fingerprint: p.fingerprint}, nil
+	return ports.RuntimeInstallPlan{
+		ArtifactID:   "synthetic-node",
+		Component:    "node",
+		Version:      "22.19.0",
+		Architecture: "amd64",
+		Destination:  p.root,
+		Fingerprint:  p.fingerprint,
+	}, nil
 }
 func (p *preparedRuntime) Install(context.Context, ports.RuntimeInstallPlan) (ports.RuntimeLocation, error) {
 	p.installs.Add(1)
-	return ports.RuntimeLocation{Root: p.root, Executable: filepath.Join(p.root, "node.exe"), Component: "node", Version: "22.19.0", Architecture: "amd64", Fingerprint: p.fingerprint}, nil
+	return ports.RuntimeLocation{
+		Root:         p.root,
+		Executable:   filepath.Join(p.root, "node.exe"),
+		Component:    "node",
+		Version:      "22.19.0",
+		Architecture: "amd64",
+		Fingerprint:  p.fingerprint,
+	}, nil
 }
 
 func TestPreparationBindsRuntimeWithoutChangingPortableRevision(t *testing.T) {
@@ -152,14 +196,32 @@ func TestPreparationBindsRuntimeWithoutChangingPortableRevision(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := &preparedRuntime{root: runtimeRoot, fingerprint: "artifact-v1"}
-	plans := application.NewPlanService(ws, application.NewCheckService(ws, &boundedProbe{}, noFiles{}, nil), application.WithRuntimeProvider(provider))
-	service := application.NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Prepare: application.NewPrepareExecutor(ws, provider)})
+	plans := application.NewPlanService(
+		ws,
+		application.NewCheckService(ws, &boundedProbe{}, noFiles{}, nil),
+		application.WithRuntimeProvider(provider),
+	)
+	service := application.NewTaskService(
+		ws,
+		plans,
+		map[task.Kind]ports.TaskExecutor{task.Prepare: application.NewPrepareExecutor(ws, provider)},
+	)
 	t.Cleanup(func() { _ = service.Close(context.Background()) })
-	plan, err := plans.BuildPrepare(ctx, application.ProfileRef{ProjectID: application.ProjectID(doc.ProjectID), ProfileID: "development", ExpectedRevision: view.Revision})
+	plan, err := plans.BuildPrepare(
+		ctx,
+		application.ProfileRef{
+			ProjectID:        application.ProjectID(doc.ProjectID),
+			ProfileID:        "development",
+			ExpectedRevision: view.Revision,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := service.Submit(ctx, application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "prepare-sdk"})
+	job, err := service.Submit(
+		ctx,
+		application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "prepare-sdk"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +231,8 @@ func TestPreparationBindsRuntimeWithoutChangingPortableRevision(t *testing.T) {
 		t.Fatalf("runtime binding: %+v %v", bound, err)
 	}
 	after, err := projects.Get(ctx, application.ProjectID(doc.ProjectID))
-	if err != nil || after.Revision != view.Revision || after.ContentHash != view.ContentHash || provider.installs.Load() != 1 {
+	if err != nil || after.Revision != view.Revision || after.ContentHash != view.ContentHash ||
+		provider.installs.Load() != 1 {
 		t.Fatal("preparation mutated portable revision", err)
 	}
 }
@@ -182,15 +245,31 @@ func TestChangedRuntimeSupplyInvalidatesPreparationPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := &preparedRuntime{root: t.TempDir(), fingerprint: "artifact-v1"}
-	plans := application.NewPlanService(ws, application.NewCheckService(ws, &boundedProbe{}, noFiles{}, nil), application.WithRuntimeProvider(provider))
-	plan, err := plans.BuildPrepare(ctx, application.ProfileRef{ProjectID: application.ProjectID(doc.ProjectID), ProfileID: "development", ExpectedRevision: 1})
+	plans := application.NewPlanService(
+		ws,
+		application.NewCheckService(ws, &boundedProbe{}, noFiles{}, nil),
+		application.WithRuntimeProvider(provider),
+	)
+	plan, err := plans.BuildPrepare(
+		ctx,
+		application.ProfileRef{
+			ProjectID:        application.ProjectID(doc.ProjectID),
+			ProfileID:        "development",
+			ExpectedRevision: 1,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	provider.fingerprint = "artifact-v2"
-	service := application.NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Prepare: application.NewPrepareExecutor(ws, provider)})
+	service := application.NewTaskService(
+		ws,
+		plans,
+		map[task.Kind]ports.TaskExecutor{task.Prepare: application.NewPrepareExecutor(ws, provider)},
+	)
 	t.Cleanup(func() { _ = service.Close(context.Background()) })
-	if _, err := service.Submit(ctx, application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "changed-supply"}); err == nil || err.Error() != "PLAN_STALE" {
+	if _, err := service.Submit(ctx, application.SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "changed-supply"}); err == nil ||
+		err.Error() != "PLAN_STALE" {
 		t.Fatalf("changed supply accepted: %v", err)
 	}
 	if provider.installs.Load() != 0 {

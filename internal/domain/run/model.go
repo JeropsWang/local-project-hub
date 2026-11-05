@@ -14,7 +14,9 @@ type Identity struct {
 	Executable   string `json:"executable,omitempty"`
 	ControlID    string `json:"controlId,omitempty"`
 	Engine       string `json:"engine,omitempty"`
+	EngineID     string `json:"engineId,omitempty"`
 	ContainerID  string `json:"containerId,omitempty"`
+	StartedAt    string `json:"startedAt,omitempty"`
 }
 
 // Snapshot fixes the commands and scripts used by the current run, even after edits.

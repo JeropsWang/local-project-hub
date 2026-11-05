@@ -38,8 +38,20 @@ type runtimeExtractor struct {
 	files    []runtimeFile
 }
 
-func extractRuntime(ctx context.Context, root *os.Root, cache, stage string, artifact RuntimeArtifact) ([]runtimeFile, error) {
-	extractor := &runtimeExtractor{ctx: ctx, root: root, stage: stage, artifact: artifact, seen: map[string]string{}, files: []runtimeFile{}}
+func extractRuntime(
+	ctx context.Context,
+	root *os.Root,
+	cache, stage string,
+	artifact RuntimeArtifact,
+) ([]runtimeFile, error) {
+	extractor := &runtimeExtractor{
+		ctx:      ctx,
+		root:     root,
+		stage:    stage,
+		artifact: artifact,
+		seen:     map[string]string{},
+		files:    []runtimeFile{},
+	}
 	file, err := root.Open(cache)
 	if err != nil {
 		return nil, err
@@ -195,7 +207,10 @@ func (e *runtimeExtractor) entry(name string, directory bool, reader io.Reader, 
 		return err
 	}
 	digest := sha256.New()
-	n, copyErr := io.Copy(io.MultiWriter(output, digest), io.LimitReader(contextReader{e.ctx, reader}, maxRuntimeFile+1))
+	n, copyErr := io.Copy(
+		io.MultiWriter(output, digest),
+		io.LimitReader(contextReader{e.ctx, reader}, maxRuntimeFile+1),
+	)
 	syncErr := output.Sync()
 	closeErr := output.Close()
 	if copyErr != nil {

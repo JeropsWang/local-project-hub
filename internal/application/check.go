@@ -34,8 +34,19 @@ type CheckService struct {
 }
 
 // NewCheckService wires read-only ports. A missing evaluator never implies success.
-func NewCheckService(ws *WorkspaceService, probe ports.Probe, files ports.FileInspector, evaluate ports.VersionEvaluator) *CheckService {
-	return &CheckService{workspaces: ws, probe: probe, files: files, evaluate: evaluate, semaphore: make(chan struct{}, 4)}
+func NewCheckService(
+	ws *WorkspaceService,
+	probe ports.Probe,
+	files ports.FileInspector,
+	evaluate ports.VersionEvaluator,
+) *CheckService {
+	return &CheckService{
+		workspaces: ws,
+		probe:      probe,
+		files:      files,
+		evaluate:   evaluate,
+		semaphore:  make(chan struct{}, 4),
+	}
 }
 
 // Check inspects only the fixed revision and never installs or starts project code.
@@ -70,7 +81,14 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return CheckReport{}, err
 	}
-	report := CheckReport{ID: hex.EncodeToString(nonce[:]), ProjectID: string(req.ProjectID), ProfileID: string(req.ProfileID), ExpectedRevision: view.Revision, CreatedAt: time.Now().UTC(), Items: []check.Item{}}
+	report := CheckReport{
+		ID:               hex.EncodeToString(nonce[:]),
+		ProjectID:        string(req.ProjectID),
+		ProfileID:        string(req.ProfileID),
+		ExpectedRevision: view.Revision,
+		CreatedAt:        time.Now().UTC(),
+		Items:            []check.Item{},
+	}
 	requirements := map[string]bool{}
 	bindingKeys := map[string]bool{}
 	for _, id := range units {
@@ -113,22 +131,56 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 	}
 	for key := range bindingKeys {
 		binding, err := repo.Binding(ctx, string(req.ProjectID), key)
-		item := check.Item{RequirementID: "binding:" + key, Status: check.Satisfied, Evidence: []check.Evidence{}, Reasons: []check.Reason{}, Repairs: []check.RepairStep{}}
+		item := check.Item{
+			RequirementID: "binding:" + key,
+			Status:        check.Satisfied,
+			Evidence:      []check.Evidence{},
+			Reasons:       []check.Reason{},
+			Repairs:       []check.RepairStep{},
+		}
 		if err != nil {
 			item.Status = check.BindingRequired
-			item.Reasons = append(item.Reasons, check.Reason{Code: "BINDING_MISSING", Subject: key, Message: "Bind the required target resource."})
+			item.Reasons = append(
+				item.Reasons,
+				check.Reason{Code: "BINDING_MISSING", Subject: key, Message: "Bind the required target resource."},
+			)
 		} else {
 			bindings[key] = binding
 		}
 		report.Items = append(report.Items, item)
 	}
 	if repo.Info().State != "ready" {
-		report.Items = append(report.Items, check.Item{RequirementID: "workspace", Status: check.BindingRequired, Reasons: []check.Reason{{Code: "WORKSPACE_REBIND_REQUIRED", Message: "Confirm relocation and bind target resources again."}}})
+		report.Items = append(
+			report.Items,
+			check.Item{
+				RequirementID: "workspace",
+				Status:        check.BindingRequired,
+				Reasons: []check.Reason{
+					{Code: "WORKSPACE_REBIND_REQUIRED", Message: "Confirm relocation and bind target resources again."},
+				},
+			},
+		)
 	}
 	ids := make([]string, 0, len(requirements))
-	inspection, inspectionErr := s.files.Inspect(ctx, ports.InspectionRequest{Document: view.Document, Bindings: bindings, WorkspaceRoot: repo.Info().Root, Revision: view.Revision, UnitIDs: units})
+	inspection, inspectionErr := s.files.Inspect(
+		ctx,
+		ports.InspectionRequest{
+			Document:      view.Document,
+			Bindings:      bindings,
+			WorkspaceRoot: repo.Info().Root,
+			Revision:      view.Revision,
+			UnitIDs:       units,
+		},
+	)
 	if inspectionErr != nil {
-		report.Items = append(report.Items, check.Item{RequirementID: "source", Status: check.Unknown, Reasons: []check.Reason{{Code: "SOURCE_INSPECTION_FAILED"}}})
+		report.Items = append(
+			report.Items,
+			check.Item{
+				RequirementID: "source",
+				Status:        check.Unknown,
+				Reasons:       []check.Reason{{Code: "SOURCE_INSPECTION_FAILED"}},
+			},
+		)
 	} else {
 		report.SourceFingerprint = inspection.Fingerprint
 		report.Constraints = inspection.Constraints
@@ -152,18 +204,32 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 	for range 4 {
 		workers.Go(func() {
 			for id := range jobs {
-				item := check.Item{RequirementID: id, Status: check.Unknown, Reasons: []check.Reason{}, Evidence: []check.Evidence{}, Repairs: []check.RepairStep{}}
+				item := check.Item{
+					RequirementID: id,
+					Status:        check.Unknown,
+					Reasons:       []check.Reason{},
+					Evidence:      []check.Evidence{},
+					Repairs:       []check.RepairStep{},
+				}
 				select {
 				case s.semaphore <- struct{}{}:
 					req := view.Document.Requirements[id]
 					probeReq := ports.ProbeRequest{Tool: req.Component, Location: req.Location}
-					if binding, e := repo.Binding(ctx, string(view.Document.ProjectID), id); e == nil && binding.Kind == "runtime" {
+					if binding, e := repo.Binding(ctx, string(view.Document.ProjectID), id); e == nil &&
+						binding.Kind == "runtime" {
 						probeReq.Executable = binding.LocalLocator
 					}
 					observation, e := s.probe.Discover(ctx, probeReq)
 					<-s.semaphore
 					if e != nil {
-						item.Reasons = append(item.Reasons, check.Reason{Code: "PROBE_FAILED", Subject: id, Message: "The read-only probe did not complete."})
+						item.Reasons = append(
+							item.Reasons,
+							check.Reason{
+								Code:    "PROBE_FAILED",
+								Subject: id,
+								Message: "The read-only probe did not complete.",
+							},
+						)
 					} else {
 						item.Evidence = append(item.Evidence, observation.Evidence)
 						if s.evaluate != nil {
@@ -222,7 +288,10 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 	for result := range results {
 		report.Items = append(report.Items, result.item)
 	}
-	sort.Slice(report.Items, func(i, j int) bool { return report.Items[i].RequirementID < report.Items[j].RequirementID })
+	sort.Slice(
+		report.Items,
+		func(i, j int) bool { return report.Items[i].RequirementID < report.Items[j].RequirementID },
+	)
 	report.Summary = "ready"
 	for _, item := range report.Items {
 		required, requirement := requirements[item.RequirementID]

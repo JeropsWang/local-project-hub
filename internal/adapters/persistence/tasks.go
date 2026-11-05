@@ -26,7 +26,15 @@ func (s *Store) SavePlan(ctx context.Context, plan task.Plan) error {
 	if plan.ProfileRef != nil {
 		revision = plan.ProfileRef.ExpectedRevision
 	}
-	_, err = s.db.ExecContext(ctx, "INSERT INTO plans(plan_id,workspace_id,project_revision,fingerprint,payload,state) VALUES(?,?,?,?,?,'ready')", plan.ID, plan.WorkspaceID, revision, plan.Fingerprint, data)
+	_, err = s.db.ExecContext(
+		ctx,
+		"INSERT INTO plans(plan_id,workspace_id,project_revision,fingerprint,payload,state) VALUES(?,?,?,?,?,'ready')",
+		plan.ID,
+		plan.WorkspaceID,
+		revision,
+		plan.Fingerprint,
+		data,
+	)
 	return err
 }
 
@@ -35,7 +43,8 @@ func (s *Store) LoadPlan(ctx context.Context, id task.PlanID) (task.Plan, error)
 	var plan task.Plan
 	var data []byte
 	var state string
-	err := s.db.QueryRowContext(ctx, "SELECT payload,state FROM plans WHERE plan_id=? AND workspace_id=?", id, s.info.WorkspaceID).Scan(&data, &state)
+	err := s.db.QueryRowContext(ctx, "SELECT payload,state FROM plans WHERE plan_id=? AND workspace_id=?", id, s.info.WorkspaceID).
+		Scan(&data, &state)
 	if errors.Is(err, sql.ErrNoRows) {
 		return plan, problem.New("PLAN_MISSING", "")
 	}
@@ -82,7 +91,19 @@ func (s *Store) CreateTask(ctx context.Context, record task.Record) (task.Record
 	if err != nil {
 		return task.Record{}, err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO tasks(task_id,request_id,plan_id,kind,state,last_event_seq,request_hash,payload,created_at) VALUES(?,?,?,?,?,?,?,?,?)", record.View.ID, record.RequestID, record.PlanID, record.View.Kind, record.View.State, record.View.LastEventSeq, record.RequestHash, data, record.CreatedAt.Format(time.RFC3339Nano))
+	_, err = tx.ExecContext(
+		ctx,
+		"INSERT INTO tasks(task_id,request_id,plan_id,kind,state,last_event_seq,request_hash,payload,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+		record.View.ID,
+		record.RequestID,
+		record.PlanID,
+		record.View.Kind,
+		record.View.State,
+		record.View.LastEventSeq,
+		record.RequestHash,
+		data,
+		record.CreatedAt.Format(time.RFC3339Nano),
+	)
 	if err != nil {
 		return task.Record{}, err
 	}
@@ -120,7 +141,10 @@ func scanTask(row rowScanner) (task.Record, error) {
 
 // QueuedTasks returns candidates for the single workspace mutation worker.
 func (s *Store) QueuedTasks(ctx context.Context) ([]task.Record, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT payload FROM tasks WHERE state='queued' ORDER BY created_at,task_id LIMIT 1000")
+	rows, err := s.db.QueryContext(
+		ctx,
+		"SELECT payload FROM tasks WHERE state='queued' ORDER BY created_at,task_id LIMIT 1000",
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +161,14 @@ func (s *Store) QueuedTasks(ctx context.Context) ([]task.Record, error) {
 }
 
 // TransitionTask compares the event cursor and validates the state edge transactionally.
-func (s *Store) TransitionTask(ctx context.Context, id task.ID, expected string, to task.State, failure *task.AppError, event task.EventData) (task.Record, error) {
+func (s *Store) TransitionTask(
+	ctx context.Context,
+	id task.ID,
+	expected string,
+	to task.State,
+	failure *task.AppError,
+	event task.EventData,
+) (task.Record, error) {
 	return s.mutateTask(ctx, id, func(record *task.Record) error {
 		if record.View.LastEventSeq != expected {
 			return problem.New("TASK_CONFLICT", "")
@@ -162,7 +193,12 @@ func (s *Store) AppendTaskEvent(ctx context.Context, id task.ID, event task.Even
 	}, event)
 }
 
-func (s *Store) mutateTask(ctx context.Context, id task.ID, mutate func(*task.Record) error, event task.EventData) (task.Record, error) {
+func (s *Store) mutateTask(
+	ctx context.Context,
+	id task.ID,
+	mutate func(*task.Record) error,
+	event task.EventData,
+) (task.Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -211,7 +247,15 @@ func insertTaskEvent(ctx context.Context, tx *sql.Tx, record task.Record, data t
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO task_events(task_id,seq,kind,occurred_at,payload) VALUES(?,?,?,?,?)", record.View.ID, record.View.LastEventSeq, string(record.View.State), time.Now().UTC().Format(time.RFC3339Nano), payload)
+	_, err = tx.ExecContext(
+		ctx,
+		"INSERT INTO task_events(task_id,seq,kind,occurred_at,payload) VALUES(?,?,?,?,?)",
+		record.View.ID,
+		record.View.LastEventSeq,
+		string(record.View.State),
+		time.Now().UTC().Format(time.RFC3339Nano),
+		payload,
+	)
 	return err
 }
 
@@ -225,7 +269,12 @@ func (s *Store) TaskEvents(ctx context.Context, id task.ID, after string) ([]tas
 			return nil, problem.New("TASK_CURSOR_INVALID", "")
 		}
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT seq,kind,occurred_at,payload FROM task_events WHERE task_id=? AND seq>? ORDER BY seq LIMIT 2000", id, cursor)
+	rows, err := s.db.QueryContext(
+		ctx,
+		"SELECT seq,kind,occurred_at,payload FROM task_events WHERE task_id=? AND seq>? ORDER BY seq LIMIT 2000",
+		id,
+		cursor,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +301,10 @@ func (s *Store) TaskEvents(ctx context.Context, id task.ID, after string) ([]tas
 
 // RecoverTasks interrupts uncertain operations without replaying any effects.
 func (s *Store) RecoverTasks(ctx context.Context) (int, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT task_id FROM tasks WHERE state IN ('queued','running','waiting-user','cancel-requested')")
+	rows, err := s.db.QueryContext(
+		ctx,
+		"SELECT task_id FROM tasks WHERE state IN ('queued','running','waiting-user','cancel-requested')",
+	)
 	if err != nil {
 		return 0, err
 	}

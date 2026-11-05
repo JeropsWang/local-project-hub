@@ -26,7 +26,8 @@ func TestRunLogRedactsSecretsAcrossWritesAndFinalTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	page, err := ReadRunLog(root, fixtureControlRun, "0", 2000)
-	if err != nil || len(page.Entries) != 2 || page.Entries[0].Text != "before [REDACTED] after" || page.Entries[1].Text != "[REDACTED]" {
+	if err != nil || len(page.Entries) != 2 || page.Entries[0].Text != "before [REDACTED] after" ||
+		page.Entries[1].Text != "[REDACTED]" {
 		t.Fatalf("streamed redaction: %+v %v", page, err)
 	}
 	files, err := filepath.Glob(filepath.Join(root, "logs", fixtureControlRun, "*"))
@@ -35,7 +36,8 @@ func TestRunLogRedactsSecretsAcrossWritesAndFinalTail(t *testing.T) {
 	}
 	for _, name := range files {
 		data, err := os.ReadFile(name)
-		if err != nil || strings.Contains(string(data), "fixture-secret-value") || strings.Contains(string(data), "fixture-sec") {
+		if err != nil || strings.Contains(string(data), "fixture-secret-value") ||
+			strings.Contains(string(data), "fixture-sec") {
 			t.Fatalf("secret reached disk: %s %v", name, err)
 		}
 	}

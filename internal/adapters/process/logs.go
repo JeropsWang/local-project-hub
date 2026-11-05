@@ -44,7 +44,8 @@ func NewRunLog(workspace, runID string, secrets []string) (*RunLog, error) {
 }
 
 func newRunLog(workspace, runID string, secrets []string, segmentBytes int64, segments int) (*RunLog, error) {
-	if !control.ValidIdentity(runID) || segmentBytes < 256 || segmentBytes > logSegmentBytes || segments < 1 || segments > logSegments {
+	if !control.ValidIdentity(runID) || segmentBytes < 256 || segmentBytes > logSegmentBytes || segments < 1 ||
+		segments > logSegments {
 		return nil, problem.New("LOG_CONFIGURATION_INVALID", "")
 	}
 	clean, err := logSecrets(secrets)
@@ -112,7 +113,12 @@ func (l *RunLog) append(stream, text string) error {
 	if l.closed {
 		return io.ErrClosedPipe
 	}
-	entry := run.LogEntry{Seq: strconv.FormatUint(l.sequence+1, 10), Stream: stream, Text: text, OccurredAt: time.Now().UTC()}
+	entry := run.LogEntry{
+		Seq:        strconv.FormatUint(l.sequence+1, 10),
+		Stream:     stream,
+		Text:       text,
+		OccurredAt: time.Now().UTC(),
+	}
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return err
@@ -152,7 +158,8 @@ func (l *RunLog) rotate() error {
 		return err
 	}
 	for number := l.segments - 2; number >= 1; number-- {
-		if err := l.root.Rename(strconv.Itoa(number)+".jsonl", strconv.Itoa(number+1)+".jsonl"); err != nil && !os.IsNotExist(err) {
+		if err := l.root.Rename(strconv.Itoa(number)+".jsonl", strconv.Itoa(number+1)+".jsonl"); err != nil &&
+			!os.IsNotExist(err) {
 			return err
 		}
 	}
@@ -178,7 +185,8 @@ func ReadRunLog(workspace, runID, after string, limit int) (run.LogPage, error) 
 		page.Next = after
 	}
 	cursor, err := strconv.ParseUint(after, 10, 64)
-	if err != nil || strconv.FormatUint(cursor, 10) != after || limit < 1 || limit > 2000 || !control.ValidIdentity(runID) {
+	if err != nil || strconv.FormatUint(cursor, 10) != after || limit < 1 || limit > 2000 ||
+		!control.ValidIdentity(runID) {
 		return page, problem.New("LOG_QUERY_INVALID", "")
 	}
 	root, err := filesystem.OpenLocalRoot(filepath.Join(workspace, "logs", runID))
@@ -212,7 +220,8 @@ func ReadRunLog(workspace, runID, after string, limit int) (run.LogPage, error) 
 				return page, problem.New("LOG_FILE_INVALID", "")
 			}
 			seq, err := strconv.ParseUint(entry.Seq, 10, 64)
-			if err != nil || seq == 0 || strconv.FormatUint(seq, 10) != entry.Seq || !first && seq <= previous || len(entry.Text) > maxLogLine {
+			if err != nil || seq == 0 || strconv.FormatUint(seq, 10) != entry.Seq || !first && seq <= previous ||
+				len(entry.Text) > maxLogLine {
 				file.Close()
 				return page, problem.New("LOG_FILE_INVALID", "")
 			}

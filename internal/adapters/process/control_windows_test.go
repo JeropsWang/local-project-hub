@@ -48,7 +48,10 @@ func TestControlRejectsWrongIdentityAndAckThenCrash(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			outcome, err := replyClient(t, tc.replies).Exchange(ctx, run.Identity{ControlID: fixtureControlRun}, fixtureControlToken, fixtureOperation, "shutdown")
+			outcome, err := replyClient(
+				t,
+				tc.replies,
+			).Exchange(ctx, run.Identity{ControlID: fixtureControlRun}, fixtureControlToken, fixtureOperation, "shutdown")
 			if err == nil || err.Error() != tc.code || outcome.Completed {
 				t.Fatalf("false completion: %+v %v", outcome, err)
 			}
@@ -66,15 +69,25 @@ func TestControlCompletionAndBlockedResultsRemainDistinct(t *testing.T) {
 		{"save-failed", "rejected", "failed", "SAVE_FAILED", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			body := map[string]any{"protocolVersion": "1.0", "runId": fixtureControlRun, "operationId": fixtureOperation, "kind": tc.kind, "state": tc.state}
+			body := map[string]any{
+				"protocolVersion": "1.0",
+				"runId":           fixtureControlRun,
+				"operationId":     fixtureOperation,
+				"kind":            tc.kind,
+				"state":           tc.state,
+			}
 			if tc.code != "" {
 				body["error"] = map[string]string{"code": tc.code, "message": "private application details"}
 			}
 			encoded, _ := json.Marshal(body)
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			result, err := replyClient(t, string(encoded)+"\n").Exchange(ctx, run.Identity{ControlID: fixtureControlRun}, fixtureControlToken, fixtureOperation, "shutdown")
-			if err != nil || result.Completed != tc.complete || result.State != tc.state || result.ErrorCode != tc.code {
+			result, err := replyClient(
+				t,
+				string(encoded)+"\n",
+			).Exchange(ctx, run.Identity{ControlID: fixtureControlRun}, fixtureControlToken, fixtureOperation, "shutdown")
+			if err != nil || result.Completed != tc.complete || result.State != tc.state ||
+				result.ErrorCode != tc.code {
 				t.Fatalf("outcome %+v %v", result, err)
 			}
 		})

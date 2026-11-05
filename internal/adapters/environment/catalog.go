@@ -57,7 +57,8 @@ func validateCatalog(catalog RuntimeCatalog) error {
 	}
 	seen := map[string]bool{}
 	for _, artifact := range catalog.Artifacts {
-		if !runtimeIdentifier.MatchString(artifact.ID) || seen[artifact.ID] || !runtimeVersion.MatchString(artifact.Version) {
+		if !runtimeIdentifier.MatchString(artifact.ID) || seen[artifact.ID] ||
+			!runtimeVersion.MatchString(artifact.Version) {
 			return problem.New("RUNTIME_CATALOG_INVALID", "")
 		}
 		seen[artifact.ID] = true
@@ -77,7 +78,9 @@ func validateCatalog(catalog RuntimeCatalog) error {
 		if artifact.Architecture != "amd64" || (artifact.Format != "zip" && artifact.Format != "tar.gz") {
 			return problem.New("RUNTIME_CATALOG_INVALID", "")
 		}
-		if !strings.HasSuffix(artifact.StripPrefix, "/") || project.ValidateRelativePath(strings.TrimSuffix(artifact.StripPrefix, "/")) != nil || project.ValidateRelativePath(artifact.Executable) != nil {
+		if !strings.HasSuffix(artifact.StripPrefix, "/") ||
+			project.ValidateRelativePath(strings.TrimSuffix(artifact.StripPrefix, "/")) != nil ||
+			project.ValidateRelativePath(artifact.Executable) != nil {
 			return problem.New("RUNTIME_CATALOG_PATH_INVALID", "")
 		}
 		if artifact.Source == "" || artifact.License == "" {

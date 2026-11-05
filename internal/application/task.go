@@ -28,7 +28,15 @@ type TaskService struct {
 
 // NewTaskService creates one coordinator for the application. Construct it only once.
 func NewTaskService(ws *WorkspaceService, plans *PlanService, executors map[task.Kind]ports.TaskExecutor) *TaskService {
-	s := &TaskService{workspaces: ws, plans: plans, executors: executors, wake: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{}), recovered: map[string]bool{}}
+	s := &TaskService{
+		workspaces: ws,
+		plans:      plans,
+		executors:  executors,
+		wake:       make(chan struct{}, 1),
+		stop:       make(chan struct{}),
+		done:       make(chan struct{}),
+		recovered:  map[string]bool{},
+	}
 	go s.worker()
 	return s
 }
@@ -109,7 +117,13 @@ func (s *TaskService) Submit(ctx context.Context, req SubmitPlanRequest) (TaskVi
 	if s.workspaces.current != repo || repo.Info().State != "ready" {
 		return TaskView{}, problem.New("PLAN_STALE", "")
 	}
-	record := task.Record{View: task.View{ID: task.ID(id), Kind: plan.Kind}, PlanID: plan.ID, RequestID: req.RequestID, RequestHash: requestHash(req), CreatedAt: time.Now().UTC()}
+	record := task.Record{
+		View:        task.View{ID: task.ID(id), Kind: plan.Kind},
+		PlanID:      plan.ID,
+		RequestID:   req.RequestID,
+		RequestHash: requestHash(req),
+		CreatedAt:   time.Now().UTC(),
+	}
 	created, err := store.CreateTask(ctx, record)
 	if err != nil {
 		return TaskView{}, err
@@ -181,7 +195,14 @@ func (s *TaskService) Cancel(ctx context.Context, id TaskID) (TaskView, error) {
 			}
 			to = task.Cancelled
 		}
-		updated, err := store.TransitionTask(ctx, id, record.View.LastEventSeq, to, nil, task.EventData{Code: "TASK_CANCEL_REQUESTED"})
+		updated, err := store.TransitionTask(
+			ctx,
+			id,
+			record.View.LastEventSeq,
+			to,
+			nil,
+			task.EventData{Code: "TASK_CANCEL_REQUESTED"},
+		)
 		if err == nil {
 			s.notify()
 			return updated.View, nil
@@ -230,7 +251,14 @@ func (s *TaskService) Resolve(ctx context.Context, req ResolveTaskRequest) (Task
 	if req.Action == "abort-exit" {
 		to = task.Cancelled
 	}
-	record, err = store.TransitionTask(ctx, req.TaskID, record.View.LastEventSeq, to, nil, task.EventData{Code: "TASK_RESOLVED"})
+	record, err = store.TransitionTask(
+		ctx,
+		req.TaskID,
+		record.View.LastEventSeq,
+		to,
+		nil,
+		task.EventData{Code: "TASK_RESOLVED"},
+	)
 	if err == nil {
 		s.notify()
 	}
@@ -284,7 +312,14 @@ func (s *TaskService) drain() {
 			if err != nil || !acquired {
 				continue
 			}
-			updated, err := store.TransitionTask(context.Background(), candidate.View.ID, candidate.View.LastEventSeq, task.Running, nil, task.EventData{Code: "TASK_RUNNING"})
+			updated, err := store.TransitionTask(
+				context.Background(),
+				candidate.View.ID,
+				candidate.View.LastEventSeq,
+				task.Running,
+				nil,
+				task.EventData{Code: "TASK_RUNNING"},
+			)
 			if err != nil {
 				_ = store.ReleaseTaskResources(context.Background(), candidate.View.ID)
 				continue
@@ -309,7 +344,15 @@ func (s *TaskService) execute(store ports.TaskRepository, record task.Record, pl
 	}
 	executor := s.executors[plan.Kind]
 	if executor == nil {
-		s.finish(store, record.View.ID, task.Failed, &task.AppError{Code: "TASK_EXECUTOR_UNAVAILABLE", Message: "This operation is not implemented by the current adapter."})
+		s.finish(
+			store,
+			record.View.ID,
+			task.Failed,
+			&task.AppError{
+				Code:    "TASK_EXECUTOR_UNAVAILABLE",
+				Message: "This operation is not implemented by the current adapter.",
+			},
+		)
 		return
 	}
 	control := &taskControl{store: store, id: record.View.ID, resume: record.ResumeAction}
@@ -332,7 +375,12 @@ func (s *TaskService) execute(store ports.TaskRepository, record task.Record, pl
 	}
 	var waiting *task.WaitingError
 	if errors.As(err, &waiting) {
-		s.finish(store, record.View.ID, task.WaitingUser, &task.AppError{Code: waiting.Code, Message: waiting.Message, Retryable: true})
+		s.finish(
+			store,
+			record.View.ID,
+			task.WaitingUser,
+			&task.AppError{Code: waiting.Code, Message: waiting.Message, Retryable: true},
+		)
 		return
 	}
 	s.finish(store, record.View.ID, task.Failed, safeTaskError(err))
@@ -340,7 +388,12 @@ func (s *TaskService) execute(store ports.TaskRepository, record task.Record, pl
 
 // invokeExecutor keeps an adapter bug from crashing the manager and losing supervision.
 // The executor still owns rollback of resources it acquired before returning or panicking.
-func invokeExecutor(ctx context.Context, executor ports.TaskExecutor, plan task.Plan, control ports.TaskControl) (err error) {
+func invokeExecutor(
+	ctx context.Context,
+	executor ports.TaskExecutor,
+	plan task.Plan,
+	control ports.TaskControl,
+) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = problem.New("TASK_EXECUTOR_PANICKED", "")
@@ -355,7 +408,14 @@ func (s *TaskService) finish(store ports.TaskRepository, id task.ID, state task.
 		if err != nil || task.Terminal(record.View.State) {
 			return
 		}
-		_, err = store.TransitionTask(context.Background(), id, record.View.LastEventSeq, state, failure, task.EventData{Code: "TASK_" + strings.ToUpper(strings.ReplaceAll(string(state), "-", "_"))})
+		_, err = store.TransitionTask(
+			context.Background(),
+			id,
+			record.View.LastEventSeq,
+			state,
+			failure,
+			task.EventData{Code: "TASK_" + strings.ToUpper(strings.ReplaceAll(string(state), "-", "_"))},
+		)
 		if err == nil {
 			return
 		}

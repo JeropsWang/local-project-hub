@@ -33,7 +33,14 @@ func preparationFixture(t *testing.T) (string, ports.PreparationCommand) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return workspace, ports.PreparationCommand{Executable: executable, Args: []string{"-test.run=^TestPreparationChild$"}, CWD: root, OwnedRoot: root, Timeout: 10 * time.Second, Environment: map[string]string{"LPH_PREPARATION_FIXTURE": "inspect"}}
+	return workspace, ports.PreparationCommand{
+		Executable:  executable,
+		Args:        []string{"-test.run=^TestPreparationChild$"},
+		CWD:         root,
+		OwnedRoot:   root,
+		Timeout:     10 * time.Second,
+		Environment: map[string]string{"LPH_PREPARATION_FIXTURE": "inspect"},
+	}
 }
 
 func TestPreparationChild(t *testing.T) {
@@ -42,7 +49,11 @@ func TestPreparationChild(t *testing.T) {
 		return
 	}
 	if mode == "inspect" {
-		_ = os.WriteFile("environment.txt", []byte(os.Getenv("USERPROFILE")+"\n"+os.Getenv("FAKE_PARENT_SECRET")+"\n"+os.Getenv("NODE_OPTIONS")), 0600)
+		_ = os.WriteFile(
+			"environment.txt",
+			[]byte(os.Getenv("USERPROFILE")+"\n"+os.Getenv("FAKE_PARENT_SECRET")+"\n"+os.Getenv("NODE_OPTIONS")),
+			0600,
+		)
 		fmt.Print(strings.Repeat("fixture-output", 100000))
 		return
 	}
@@ -72,7 +83,8 @@ func TestPreparationRunnerUsesPrivateHomeAndBoundsLog(t *testing.T) {
 		t.Fatalf("run: %+v %v", result, err)
 	}
 	data, err := os.ReadFile(filepath.Join(command.CWD, "environment.txt"))
-	if err != nil || strings.Contains(string(data), "fixture-never-inherit") || !strings.HasPrefix(string(data), command.OwnedRoot) {
+	if err != nil || strings.Contains(string(data), "fixture-never-inherit") ||
+		!strings.HasPrefix(string(data), command.OwnedRoot) {
 		t.Fatalf("parent environment leaked: %q %v", data, err)
 	}
 	info, err := os.Stat(result.LogFile)
