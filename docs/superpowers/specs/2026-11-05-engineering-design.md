@@ -128,6 +128,7 @@ CheckStatus 固定为 satisfied、missing、incompatible、binding-required、un
 ```go
 WorkspaceService.Initialize(ctx context.Context, req InitWorkspaceRequest) (WorkspaceView, error)
 WorkspaceService.Open(ctx context.Context, root string) (WorkspaceView, error)
+WorkspaceService.ConfirmRelocation(ctx context.Context, id WorkspaceID) (WorkspaceView, error)
 ProjectService.Register(ctx context.Context, req RegisterProjectRequest) (ProjectView, error)
 ProjectService.Save(ctx context.Context, req SaveProjectRequest) (ProjectView, error)
 ProjectService.Get(ctx context.Context, id ProjectID) (ProjectView, error)

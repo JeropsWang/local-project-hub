@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 项目处于工程设计与实施计划评审阶段，目前没有应用实现。
+- 用户已确认实施计划，当前在独立开发分支逐项实现；已有配置校验与工作空间核心，尚无完整桌面应用。
 - 已选择独立 Windows 桌面程序，核心采用 Go + Wails；前端由用户授权助手选用 React + TypeScript + Vite，样式采用 CSS Modules。
 - 修改实现前先阅读 `docs/requirements.md`、`docs/environments.md`、`docs/portability.md`、`docs/engineering-conventions.md`、`docs/technology-selection.md` 与 `docs/visual-direction.md`，区分已确认需求和建议。
 
