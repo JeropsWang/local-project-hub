@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "verifiedAt": "2026-11-05",
+  "artifacts": [
+    {
+      "id": "node-22-19-0-win-amd64",
+      "component": "node",
+      "version": "22.19.0",
+      "architecture": "amd64",
+      "url": "https://nodejs.org/download/release/v22.19.0/node-v22.19.0-win-x64.zip",
+      "sha256": "ea3fad0e67a991d8477d8c01344b56e69c676ccb733f065b22436994b1253f86",
+      "format": "zip",
+      "stripPrefix": "node-v22.19.0-win-x64/",
+      "executable": "node.exe",
+      "source": "https://nodejs.org/download/release/v22.19.0/SHASUMS256.txt",
+      "license": "Node.js distribution licenses (bundled LICENSE)",
+      "bundledNpm": "10.9.3"
+    },
+    {
+      "id": "go-1-26-1-win-amd64",
+      "component": "go",
+      "version": "1.26.1",
+      "architecture": "amd64",
+      "url": "https://go.dev/dl/go1.26.1.windows-amd64.zip",
+      "sha256": "9b68112c913f45b7aebbf13c036721264bbba7e03a642f8f7490c561eebd1ecc",
+      "format": "zip",
+      "stripPrefix": "go/",
+      "executable": "bin/go.exe",
+      "source": "https://go.dev/dl/?mode=json&include=all",
+      "license": "Go BSD license (bundled LICENSE)"
+    },
+    {
+      "id": "python-3-12-16-win-amd64",
+      "component": "python",
+      "version": "3.12.16",
+      "architecture": "amd64",
+      "abi": "cp312",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-x86_64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "590dfcbe3a34c07301e6332e13e2188b98655cd072b08afa45a7998dc4c22bc5",
+      "format": "tar.gz",
+      "stripPrefix": "python/",
+      "executable": "python.exe",
+      "source": "https://github.com/astral-sh/python-build-standalone/releases/tag/20261026",
+      "license": "CPython PSF and bundled third-party distribution licenses"
+    },
+    {
+      "id": "python-3-13-18-win-amd64",
+      "component": "python",
+      "version": "3.13.18",
+      "architecture": "amd64",
+      "abi": "cp313",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.13.18%2B20261026-x86_64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "ebe90cc1dce2dd2d7afa1f0aa9b6c269c7c0174aeabdc6a801381602b7283424",
+      "format": "tar.gz",
+      "stripPrefix": "python/",
+      "executable": "python.exe",
+      "source": "https://github.com/astral-sh/python-build-standalone/releases/tag/20261026",
+      "license": "CPython PSF and bundled third-party distribution licenses"
+    }
+  ]
+}

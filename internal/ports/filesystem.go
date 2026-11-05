@@ -24,12 +24,7 @@ type SourceInspection struct {
 }
 
 // MetadataConstraint is observed from a bounded source manifest, never executed.
-type MetadataConstraint struct {
-	Component string
-	Semantics string
-	Range     string
-	Source    string
-}
+type MetadataConstraint = check.Constraint
 
 // FileInspector reads bounded declared files and never invokes a project script.
 type FileInspector interface {

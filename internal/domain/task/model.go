@@ -2,6 +2,7 @@
 package task
 
 import (
+	"github.com/JeropsWang/local-project-hub/internal/domain/check"
 	"github.com/JeropsWang/local-project-hub/internal/domain/project"
 	"time"
 )
@@ -60,16 +61,17 @@ type Step struct {
 
 // Plan is authored and stored by the backend; clients submit only its ID and fingerprint.
 type Plan struct {
-	ID               PlanID       `json:"id"`
-	Kind             Kind         `json:"kind"`
-	WorkspaceID      string       `json:"workspaceId"`
-	ProfileRef       *project.Ref `json:"profileRef,omitempty"`
-	Fingerprint      string       `json:"fingerprint"`
-	Steps            []Step       `json:"steps"`
-	RequiredBindings []string     `json:"requiredBindings"`
-	Warnings         []string     `json:"warnings"`
-	ResourceIDs      []string     `json:"resourceIds"`
-	CreatedAt        time.Time    `json:"createdAt"`
+	ID                PlanID             `json:"id"`
+	Kind              Kind               `json:"kind"`
+	WorkspaceID       string             `json:"workspaceId"`
+	ProfileRef        *project.Ref       `json:"profileRef,omitempty"`
+	Fingerprint       string             `json:"fingerprint"`
+	Steps             []Step             `json:"steps"`
+	RequiredBindings  []string           `json:"requiredBindings"`
+	Warnings          []string           `json:"warnings"`
+	ResourceIDs       []string           `json:"resourceIds"`
+	SourceConstraints []check.Constraint `json:"sourceConstraints"`
+	CreatedAt         time.Time          `json:"createdAt"`
 }
 
 // SubmitRequest is idempotent per workspace and binds a request ID to the exact request body.

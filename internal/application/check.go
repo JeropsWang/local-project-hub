@@ -131,6 +131,7 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 		report.Items = append(report.Items, check.Item{RequirementID: "source", Status: check.Unknown, Reasons: []check.Reason{{Code: "SOURCE_INSPECTION_FAILED"}}})
 	} else {
 		report.SourceFingerprint = inspection.Fingerprint
+		report.Constraints = inspection.Constraints
 		report.Items = append(report.Items, inspection.Items...)
 	}
 	for id := range requirements {

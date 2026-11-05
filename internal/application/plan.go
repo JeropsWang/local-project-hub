@@ -20,13 +20,26 @@ import (
 
 // PlanService stores backend-authored steps bound to a fixed input fingerprint.
 type PlanService struct {
-	workspaces *WorkspaceService
-	checks     *CheckService
+	workspaces      *WorkspaceService
+	checks          *CheckService
+	runtimeProvider ports.RuntimeProvider
+}
+
+// PlanOption supplies backend capabilities; no option can be read from project JSON.
+type PlanOption func(*PlanService)
+
+// WithRuntimeProvider pins concrete supplies while preparing a preview.
+func WithRuntimeProvider(provider ports.RuntimeProvider) PlanOption {
+	return func(s *PlanService) { s.runtimeProvider = provider }
 }
 
 // NewPlanService does not execute any step while constructing a plan.
-func NewPlanService(ws *WorkspaceService, checks *CheckService) *PlanService {
-	return &PlanService{workspaces: ws, checks: checks}
+func NewPlanService(ws *WorkspaceService, checks *CheckService, options ...PlanOption) *PlanService {
+	s := &PlanService{workspaces: ws, checks: checks}
+	for _, option := range options {
+		option(s)
+	}
+	return s
 }
 
 // BuildPrepare permits missing environments and describes explicit preparation effects.
@@ -78,6 +91,7 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 		return OperationPlan{}, problem.New("TASK_STORAGE_UNAVAILABLE", "")
 	}
 	plan := OperationPlan{ID: task.PlanID(id), Kind: kind, WorkspaceID: input.WorkspaceID, ProfileRef: &ref, Fingerprint: input.Hash(), Steps: []task.Step{}, Warnings: []string{}, RequiredBindings: []string{}, ResourceIDs: []string{}, CreatedAt: time.Now().UTC()}
+	plan.SourceConstraints = report.Constraints
 	resources := map[string]bool{}
 	requirements := map[string]bool{}
 	for _, unitID := range ordered {
@@ -102,10 +116,20 @@ func (s *PlanService) build(ctx context.Context, kind task.Kind, ref ProfileRef)
 		sort.Strings(keys)
 		for _, key := range keys {
 			requirement := doc.Requirements[key]
-			if !requirement.Required {
+			if !requirement.Required || requirement.Location == "docker" {
 				continue
 			}
-			plan.Steps = append(plan.Steps, task.Step{ID: "runtime-" + key, Action: "prepare-runtime", Effect: "install", CancelPolicy: "checkpoint", RequirementID: key, ResourceIDs: []string{}, InputFingerprints: map[string]string{"plan": plan.Fingerprint}})
+			fingerprints := map[string]string{"plan": plan.Fingerprint}
+			if s.runtimeProvider != nil {
+				runtimePlan, err := s.runtimeProvider.Plan(ctx, ports.RuntimeRequest{Requirement: requirement, Constraints: report.Constraints})
+				if err != nil {
+					return OperationPlan{}, err
+				}
+				fingerprints["runtime"] = runtimePlan.Fingerprint
+				fingerprints["artifactId"] = runtimePlan.ArtifactID
+				fingerprints["version"] = runtimePlan.Version
+			}
+			plan.Steps = append(plan.Steps, task.Step{ID: "runtime-" + key, Action: "prepare-runtime", Effect: "install", CancelPolicy: "checkpoint", RequirementID: key, ResourceIDs: []string{}, InputFingerprints: fingerprints})
 		}
 	} else {
 		if kind == task.Stop {
@@ -223,9 +247,21 @@ func (s *PlanService) validate(ctx context.Context, plan task.Plan) error {
 	if plan.ProfileRef == nil {
 		return problem.New("PLAN_REFERENCE_REQUIRED", "")
 	}
-	input, _, _, err := s.input(ctx, *plan.ProfileRef)
+	input, doc, report, err := s.input(ctx, *plan.ProfileRef)
 	if err != nil || input.WorkspaceID != plan.WorkspaceID || input.Hash() != plan.Fingerprint {
 		return problem.New("PLAN_STALE", "")
+	}
+	for _, step := range plan.Steps {
+		if step.Action != "prepare-runtime" || step.InputFingerprints["runtime"] == "" {
+			continue
+		}
+		if s.runtimeProvider == nil {
+			return problem.New("PLAN_STALE", "")
+		}
+		runtimePlan, err := s.runtimeProvider.Plan(ctx, ports.RuntimeRequest{Requirement: doc.Requirements[step.RequirementID], Constraints: report.Constraints})
+		if err != nil || runtimePlan.Fingerprint != step.InputFingerprints["runtime"] {
+			return problem.New("PLAN_STALE", "")
+		}
 	}
 	return nil
 }
