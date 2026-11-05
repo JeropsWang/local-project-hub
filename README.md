@@ -14,12 +14,16 @@
 - 提供桌面程序，同时支持配置一键导出、迁移与导入识别。
 - 规范配置兼容性，导入时检查文件完整性和缺失依赖。
 - 使用 Git 管理本工具的版本，托管在 `JeropsWang` 的公开 GitHub 仓库。
+- 采用独立桌面程序路线，首版仅支持 Windows。
+- 环境处理同时支持自动准备项目独立环境、仅检测并提供修复步骤两种模式，由用户选择。
+- 准备环境前，由用户先初始化并指定使用哪个磁盘、哪个文件夹。
 
 ## 讨论文档
 
 - [需求与边界](docs/requirements.md)
 - [开源参考与候选路线](docs/approaches.md)
 - [配置迁移与兼容规则建议](docs/portability.md)
+- [工作空间初始化与环境处理](docs/environments.md)
 
 ## 建议方向，待讨论确认
 
@@ -36,4 +40,4 @@
 - [Komodo](https://github.com/moghtech/komodo)：服务器、部署及自动化流程。
 - [Portainer CE](https://github.com/portainer/portainer)：通用容器维护。
 
-以上为研究对象，尚未选择 fork，也未复制其代码。
+以上为研究对象。已选择独立桌面程序路线，不直接 fork 其中一个项目；尚未复制其代码。
