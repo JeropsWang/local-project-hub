@@ -4,6 +4,8 @@ dist/
 build/
 target/
 coverage/
+.worktrees/
+.superpowers/
 .venv/
 __pycache__/
 
