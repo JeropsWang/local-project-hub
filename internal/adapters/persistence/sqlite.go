@@ -10,11 +10,12 @@ import (
 	"strings"
 	"sync"
 
+	_ "modernc.org/sqlite"
+
 	"github.com/JeropsWang/local-project-hub/internal/adapters/filesystem"
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 	"github.com/JeropsWang/local-project-hub/internal/domain/workspace"
 	"github.com/JeropsWang/local-project-hub/internal/ports"
-	_ "modernc.org/sqlite"
 )
 
 type factory struct{}

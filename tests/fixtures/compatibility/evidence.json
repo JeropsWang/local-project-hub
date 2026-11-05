@@ -1,0 +1,12 @@
+{
+  "declarationKinds": [
+    "declaration",
+    "lockfile",
+    "ci-config"
+  ],
+  "forbiddenPromotions": [
+    "runtime-test",
+    "desktop-test"
+  ],
+  "runtimeVerificationPerformed": false
+}

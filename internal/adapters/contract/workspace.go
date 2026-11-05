@@ -7,9 +7,10 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
+
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 	"github.com/JeropsWang/local-project-hub/internal/domain/workspace"
-	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 var workspaceSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {

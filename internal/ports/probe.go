@@ -2,8 +2,9 @@ package ports
 
 import (
 	"context"
-	"github.com/JeropsWang/local-project-hub/internal/domain/check"
 	"time"
+
+	"github.com/JeropsWang/local-project-hub/internal/domain/check"
 )
 
 // ProbeRequest is constructed by the application, never accepted as a frontend command.

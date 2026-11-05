@@ -9,9 +9,10 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
+
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 	"github.com/JeropsWang/local-project-hub/internal/domain/project"
-	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 //go:embed schemas/*.schema.json

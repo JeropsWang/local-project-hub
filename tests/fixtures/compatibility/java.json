@@ -1,0 +1,22 @@
+[
+  {
+    "range": ">=11",
+    "version": "1.8.0_392",
+    "expected": "incompatible"
+  },
+  {
+    "range": ">=17 <22",
+    "version": "21.0.4",
+    "expected": "satisfied"
+  },
+  {
+    "range": ">=17",
+    "version": "11.0.16.1",
+    "expected": "incompatible"
+  },
+  {
+    "range": "[17,22)",
+    "version": "21.0.4",
+    "expected": "unknown"
+  }
+]

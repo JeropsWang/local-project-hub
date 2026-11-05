@@ -185,7 +185,7 @@ Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
 以下是测试名及关键断言片段；夹具在列出的测试文件内构建，输入使用仓库脱敏示例，不依赖真实工程。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestLockedNodeEngines(t *testing.T) {
@@ -200,21 +200,21 @@ func TestEvidenceDoesNotPromoteCIToRuntime(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证红灯**
+- [x] **Step 2: 验证红灯**
 
 Run: `go test ./internal/adapters/version ./internal/application ./tests/integration`
 Expected: FAIL，缺少下述接口或行为；不能因测试环境损坏而把失败当成有效红灯。
 
-- [ ] **Step 3: 实现本任务接口**
+- [x] **Step 3: 实现本任务接口**
 
 锁 Masterminds semver 与 PEP440 库，npm 夹具使用固定 npm semver 生成的期望值，覆盖 OR/预发布/空白范围；=== 不支持明确 unknown。Go 解析 go.mod/go.work/toolchain，Java 区分工具链、release 与 JVM。用合成夹具还原三项目的已知约束：两套 Python、独立 PG/Redis 主版本、可选重型功能、源与运行归属不一致。汇总状态仍不能代表桌面运行认证。最终 go test ./... 与 go vet ./... 通过后记录证据。
 
-- [ ] **Step 4: 验证绿灯**
+- [x] **Step 4: 验证绿灯**
 
 Run: `go test ./internal/adapters/version ./internal/application ./tests/integration`
 Expected: PASS；格式化相关 Go 文件并运行 `go vet ./...`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 显式暂存本任务 Files 中的实现与测试，检查无本机数据后执行 `git commit -m "feat: evaluate ecosystem compatibility with evidence"`。
 

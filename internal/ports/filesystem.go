@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+
 	"github.com/JeropsWang/local-project-hub/internal/domain/check"
 	"github.com/JeropsWang/local-project-hub/internal/domain/project"
 )
@@ -18,6 +19,15 @@ type InspectionRequest struct {
 type SourceInspection struct {
 	Fingerprint string
 	Items       []check.Item
+	Constraints []MetadataConstraint
+}
+
+// MetadataConstraint is observed from a bounded source manifest, never executed.
+type MetadataConstraint struct {
+	Component string
+	Semantics string
+	Range     string
+	Source    string
 }
 
 // FileInspector reads bounded declared files and never invokes a project script.

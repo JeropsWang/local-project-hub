@@ -41,3 +41,30 @@ func TestInspectorReportsDeclaredFileMismatchWithoutRunningIt(t *testing.T) {
 		t.Fatalf("mismatch: %+v %v", result, err)
 	}
 }
+
+func TestMetadataFingerprintIsStableAndTracksManifestChanges(t *testing.T) {
+	root := t.TempDir()
+	for name, data := range map[string]string{"package.json": `{"engines":{"node":">=22.19.0"}}`, "package-lock.json": `{"lockfileVersion":3,"packages":{"":{"engines":{"node":">=22.19.0"}}}}`} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	req := ports.InspectionRequest{Document: project.Document{Requirements: map[string]project.Requirement{"node": {Component: "node"}}}, Bindings: map[string]project.Binding{"source": {Kind: "path", LocalLocator: root}}}
+	first, err := (StaticInspector{}).Inspect(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 24 {
+		next, err := (StaticInspector{}).Inspect(context.Background(), req)
+		if err != nil || next.Fingerprint != first.Fingerprint {
+			t.Fatal("unchanged manifests produced a stale-plan fingerprint")
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"engines":{"node":">=24.0.0"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := (StaticInspector{}).Inspect(context.Background(), req)
+	if err != nil || changed.Fingerprint == first.Fingerprint {
+		t.Fatal("manifest change not detected")
+	}
+}

@@ -1,11 +1,13 @@
 package project
 
 import (
-	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
-	"golang.org/x/text/unicode/norm"
 	"regexp"
 	"strings"
 	"unicode"
+
+	"golang.org/x/text/unicode/norm"
+
+	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 )
 
 // Path refers to a project-scoped local binding.

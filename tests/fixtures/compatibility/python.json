@@ -1,0 +1,36 @@
+[
+  {
+    "range": ">=3.12,<3.15",
+    "version": "3.13.2",
+    "expected": "satisfied"
+  },
+  {
+    "range": ">=3.12,<3.15",
+    "version": "3.11.9",
+    "expected": "incompatible"
+  },
+  {
+    "range": "~=3.12.0",
+    "version": "3.13.0",
+    "expected": "incompatible"
+  },
+  {
+    "range": "===3.13.0",
+    "version": "3.13.0",
+    "expected": "unknown"
+  },
+  {
+    "range": ">=3.13",
+    "version": "3.13.2",
+    "abi": "cp313",
+    "observedABI": "cpython-312",
+    "expected": "incompatible"
+  },
+  {
+    "range": ">=3.13",
+    "version": "3.13.2",
+    "abi": "cp313",
+    "observedABI": "cpython-313",
+    "expected": "satisfied"
+  }
+]

@@ -105,6 +105,10 @@ func (StaticInspector) Inspect(ctx context.Context, req ports.InspectionRequest)
 		result.Items = append(result.Items, item)
 	}
 	result.Fingerprint = hex.EncodeToString(hash.Sum(nil))
+	if err := inspectConstraints(ctx, req, &result, hash, &total); err != nil {
+		return result, err
+	}
+	result.Fingerprint = hex.EncodeToString(hash.Sum(nil))
 	return result, nil
 }
 

@@ -121,6 +121,13 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 		report.Items = append(report.Items, check.Item{RequirementID: "workspace", Status: check.BindingRequired, Reasons: []check.Reason{{Code: "WORKSPACE_REBIND_REQUIRED", Message: "Confirm relocation and bind target resources again."}}})
 	}
 	ids := make([]string, 0, len(requirements))
+	inspection, inspectionErr := s.files.Inspect(ctx, ports.InspectionRequest{Document: view.Document, Bindings: bindings, WorkspaceRoot: repo.Info().Root, Revision: view.Revision})
+	if inspectionErr != nil {
+		report.Items = append(report.Items, check.Item{RequirementID: "source", Status: check.Unknown, Reasons: []check.Reason{{Code: "SOURCE_INSPECTION_FAILED"}}})
+	} else {
+		report.SourceFingerprint = inspection.Fingerprint
+		report.Items = append(report.Items, inspection.Items...)
+	}
 	for id := range requirements {
 		ids = append(ids, id)
 	}
@@ -158,6 +165,30 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 							if e == nil {
 								item = evaluated
 								item.RequirementID = id
+								for _, constraint := range inspection.Constraints {
+									if constraint.Component != req.Component || req.Location != "windows" {
+										continue
+									}
+									extra := req
+									extra.Semantics = constraint.Semantics
+									extra.Range = constraint.Range
+									extra.Evidence = project.RequirementEvidence{Kind: "lockfile", Reference: constraint.Source}
+									more, err := s.evaluate(extra, observation)
+									if err != nil {
+										item.Status = check.Unknown
+										continue
+									}
+									item.Evidence = append(item.Evidence, check.Evidence{Kind: "metadata", Source: constraint.Source, ObservedAt: report.CreatedAt})
+									if more.Status != check.Satisfied {
+										if item.Status == check.Satisfied || more.Status == check.Incompatible {
+											item.Status = more.Status
+										}
+										for _, reason := range more.Reasons {
+											reason.Subject = constraint.Source
+											item.Reasons = append(item.Reasons, reason)
+										}
+									}
+								}
 							} else {
 								item.Reasons = append(item.Reasons, check.Reason{Code: "VERSION_EVALUATION_FAILED", Subject: id})
 							}
@@ -184,13 +215,6 @@ func (s *CheckService) Check(ctx context.Context, req CheckRequest) (CheckReport
 	close(results)
 	for result := range results {
 		report.Items = append(report.Items, result.item)
-	}
-	inspection, err := s.files.Inspect(ctx, ports.InspectionRequest{Document: view.Document, Bindings: bindings, WorkspaceRoot: repo.Info().Root, Revision: view.Revision})
-	if err != nil {
-		report.Items = append(report.Items, check.Item{RequirementID: "source", Status: check.Unknown, Reasons: []check.Reason{{Code: "SOURCE_INSPECTION_FAILED"}}})
-	} else {
-		report.SourceFingerprint = inspection.Fingerprint
-		report.Items = append(report.Items, inspection.Items...)
 	}
 	sort.Slice(report.Items, func(i, j int) bool { return report.Items[i].RequirementID < report.Items[j].RequirementID })
 	report.Summary = "ready"

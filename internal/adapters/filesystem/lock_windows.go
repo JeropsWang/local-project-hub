@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 	"golang.org/x/sys/windows"
+
+	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
 )
 
 // checkLocalRoot excludes UNC, mapped network drives and reparse point ancestors.
