@@ -10,6 +10,24 @@ import (
 	"github.com/JeropsWang/local-project-hub/internal/adapters/persistence"
 )
 
+func TestOpeningSourceFolderDoesNotCreateWorkspaceLock(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := persistence.NewFactory().Open(context.Background(), root)
+	if err == nil {
+		_ = store.Close()
+		t.Fatal("opened a source folder as a workspace")
+	}
+	if err.Error() != "WORKSPACE_IDENTITY_INVALID" {
+		t.Fatalf("unexpected open error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".workspace.lock")); !os.IsNotExist(err) {
+		t.Fatalf("opening a source folder left a lock file: %v", err)
+	}
+}
+
 func TestWorkspaceIdentityRejectsDuplicateKeys(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

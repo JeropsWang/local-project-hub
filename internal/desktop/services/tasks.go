@@ -56,6 +56,15 @@ func (m *Manager) Task(ctx context.Context, id task.ID) (task.View, error) {
 	return session.Tasks.Get(ctx, id)
 }
 
+// Cancel delegates to the scheduler so a running operation stops at a safe point.
+func (m *Manager) Cancel(ctx context.Context, id task.ID) (task.View, error) {
+	session, err := m.current()
+	if err != nil {
+		return task.View{}, err
+	}
+	return session.Tasks.Cancel(ctx, id)
+}
+
 func (m *Manager) Resolve(ctx context.Context, req task.ResolveRequest) (task.View, error) {
 	session, err := m.current()
 	if err != nil {

@@ -14,6 +14,7 @@ interface ImportPreview {
   id: string;
   document: { name: string };
   requiredBindings?: string[];
+  warnings?: string[];
 }
 
 interface Container {
@@ -25,7 +26,10 @@ interface Container {
   projectIds: string[] | null;
 }
 
-export function LibraryPage({ workspace }: { workspace: Workspace }) {
+export function LibraryPage({ workspace, onWorkspaceChanged }: {
+  workspace: Workspace;
+  onWorkspaceChanged: (view: Workspace) => void;
+}) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState("");
   const [profile, setProfile] = useState("");
@@ -39,9 +43,10 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
   const [containers, setContainers] = useState<Container[]>();
   const project = projects.find((item) => item.document.projectId === selected);
   const profiles = Object.entries(project?.document.profiles ?? {});
-  const ref = project && {
+  const profileId = profiles.some(([id]) => id === profile) ? profile : profiles[0]?.[0];
+  const ref = project && profileId && {
     projectId: project.document.projectId,
-    profileId: profile || profiles[0]?.[0],
+    profileId,
     expectedRevision: project.revision,
   };
 
@@ -69,30 +74,49 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
 
   useEffect(() => {
     if (!task || ["failed", "cancelled", "interrupted", "succeeded", "waiting-user"].includes(task.state)) return;
-    const timer = window.setTimeout(() => {
-      void call<TaskView>("Task", task.id).then((next) => {
+    let disposed = false;
+    let timer: number;
+    async function poll(id: string) {
+      try {
+        const next = await call<TaskView>("Task", id);
+        if (disposed) return;
         setTask(next);
-        if (next.state === "succeeded") void refresh().catch((cause) => setError(String(cause)));
-      }).catch((cause) => setError(String(cause)));
-    }, 400);
-    return () => window.clearTimeout(timer);
+        if (next.state === "succeeded") await refresh();
+      } catch (cause) {
+        if (disposed) return;
+        setError(String(cause));
+        timer = window.setTimeout(() => void poll(id), 1500);
+      }
+    }
+    timer = window.setTimeout(() => void poll(task.id), 400);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
   }, [task]);
 
   function review(plan: Plan) {
     setPending({ plan, request: crypto.randomUUID() });
   }
 
-  const taskActive = task && ["queued", "running", "cancel-requested"].includes(task.state);
+  const taskActive = task && ["queued", "running", "cancel-requested", "waiting-user"].includes(task.state);
   const disabled = busy || Boolean(taskActive) || workspace.state !== "ready";
+  function selectProject(id: string) {
+    setSelected(id);
+    setProfile("");
+    setPending(undefined);
+    setReport(undefined);
+  }
 
   return (
     <div className="library">
       <aside>
         <h2>项目库</h2>
+        {selected && <button className="secondary" disabled={busy} onClick={() => selectProject("")}>登记另一个项目</button>}
         {projects.length === 0 && <p>这里会显示已登记的项目。</p>}
         {projects.map((item) => (
           <button key={item.document.projectId} className="project" aria-pressed={selected === item.document.projectId}
-            onClick={() => { setSelected(item.document.projectId); setProfile(""); setReport(undefined); }}>
+            disabled={busy} onClick={() => selectProject(item.document.projectId)}>
             <strong>{item.document.name}</strong>
             <small>{item.document.group || "未分组"} · {item.runSummary}</small>
           </button>
@@ -103,7 +127,13 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
           <div><h1>{project?.document.name || workspace.name}</h1><p>{workspace.root}</p></div>
           <button className="secondary" disabled={busy} onClick={() => void exit()}>安全退出</button>
         </div>
-        {workspace.state !== "ready" && <p role="alert">这个工作空间需要重新绑定。</p>}
+        {workspace.state === "rebind-required" && <section>
+          <p role="alert">这个工作空间来自其他位置。确认迁移会清除旧路径、凭据引用和容器控制授权。项目配置会保留，之后需要重新绑定。</p>
+          <button disabled={busy} onClick={() => void perform(async () => {
+            onWorkspaceChanged(await call<Workspace>("ConfirmRelocation", workspace.workspaceId));
+            await refresh();
+          })}>确认迁移到此目录</button>
+        </section>}
         {projects.length === 0 && <section>
           <h2>开始使用</h2>
           <p>可以先查看 Docker Desktop 中已有的容器。有项目配置包时，选择 ZIP 预览并登记项目，随后可选中项目进行环境检测。</p>
@@ -117,7 +147,11 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
           perform={perform} refresh={refresh} />
         {ref && (
           <section>
-            <label>运行配置<select value={ref.profileId} onChange={(event) => setProfile(event.target.value)}>
+            <label>运行配置<select disabled={busy} value={ref.profileId} onChange={(event) => {
+              setProfile(event.target.value);
+              setPending(undefined);
+              setReport(undefined);
+            }}>
               {profiles.map(([id, value]) => <option key={id} value={id}>{value.label}</option>)}
             </select></label>
             <div className="actions">
@@ -161,6 +195,7 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
           {imported && <div className="notice">
             <strong>{imported.document.name}</strong>
             <p>待绑定：{imported.requiredBindings?.join("、") || "无"}</p>
+            {imported.warnings?.map((warning) => <p key={warning}>{warning}</p>)}
             <button disabled={disabled} onClick={() => void perform(async () =>
               review(await call<Plan>("PlanImport", { previewId: imported.id, bindings: [] })))}>登记项目</button>
           </div>}
@@ -180,6 +215,8 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
         {task && <section className="notice" aria-live="polite">
           <strong>{task.kind} · {task.state}</strong>
           {task.error && <p>{task.error.code} · {task.error.message}</p>}
+          {task.kind !== "exit" && task.cancelable && <button className="secondary" disabled={busy}
+            onClick={() => void perform(async () => setTask(await call<TaskView>("Cancel", task.id)))}>取消任务</button>}
           {task.state === "waiting-user" && <div className="actions">
             {Object.entries({ retry: "重试", "continue-wait": "继续等待", ...(task.kind === "exit" ? { "abort-exit": "取消退出" } : {}) })
               .map(([action, title]) => <button key={action} className="secondary" disabled={busy}

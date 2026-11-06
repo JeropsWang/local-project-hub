@@ -4,6 +4,7 @@ export interface TaskView {
   id: string;
   kind: string;
   state: string;
+  cancelable: boolean;
   lastEventSeq: string;
   error?: { code: string; message: string };
 }

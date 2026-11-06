@@ -9,7 +9,7 @@ function App() {
   return (
     <>
       <header className="appbar"><strong>Local Project Hub</strong><span>Windows 工作台</span></header>
-      <main>{workspace ? <LibraryPage workspace={workspace} /> : <WorkspacePage onOpen={setWorkspace} />}</main>
+      <main>{workspace ? <LibraryPage workspace={workspace} onWorkspaceChanged={setWorkspace} /> : <WorkspacePage onOpen={setWorkspace} />}</main>
     </>
   );
 }

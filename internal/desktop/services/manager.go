@@ -3,7 +3,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/JeropsWang/local-project-hub/internal/application"
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
@@ -12,16 +14,17 @@ import (
 
 // Session contains one workspace's active services and native lifetime.
 type Session struct {
-	Workspace  *application.WorkspaceService
-	Projects   *application.ProjectService
-	Checks     *application.CheckService
-	Plans      *application.PlanService
-	Tasks      *application.TaskService
-	Lifecycle  *application.LifecycleService
-	Bundles    *application.BundleService
-	Containers ports.ContainerAdapter
-	Resources  ports.ResourceRepository
-	View       application.WorkspaceView
+	Workspace      *application.WorkspaceService
+	Projects       *application.ProjectService
+	Checks         *application.CheckService
+	Plans          *application.PlanService
+	Tasks          *application.TaskService
+	Lifecycle      *application.LifecycleService
+	Bundles        *application.BundleService
+	Containers     ports.ContainerAdapter
+	Resources      ports.ResourceRepository
+	CloseProcesses func() error
+	View           application.WorkspaceView
 }
 
 type SessionFactory func(context.Context, application.InitWorkspaceRequest, bool) (*Session, error)
@@ -33,6 +36,23 @@ type Manager struct {
 }
 
 func NewManager(factory SessionFactory) *Manager { return &Manager{factory: factory} }
+
+// ServiceShutdown runs after the native quit gate has allowed Wails to exit.
+func (m *Manager) ServiceShutdown() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.session == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := m.session.Tasks.Close(ctx); err != nil {
+		return err
+	}
+	err := errors.Join(m.session.CloseProcesses(), m.session.Workspace.Close())
+	m.session = nil
+	return err
+}
 
 // SelectWorkspace binds the desktop to one workspace for its current lifetime.
 func (m *Manager) SelectWorkspace(ctx context.Context, req application.InitWorkspaceRequest, create bool) (application.WorkspaceView, error) {
@@ -59,12 +79,27 @@ func (m *Manager) current() (*Session, error) {
 }
 
 func (m *Manager) Workspace() *application.WorkspaceView {
-	session, err := m.current()
-	if err != nil {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.session == nil {
 		return nil
 	}
-	view := session.View
+	view := m.session.View
 	return &view
+}
+
+// ConfirmRelocation reopens project editing after the core revokes host bindings.
+func (m *Manager) ConfirmRelocation(ctx context.Context, id application.WorkspaceID) (application.WorkspaceView, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.session == nil {
+		return application.WorkspaceView{}, problem.New("WORKSPACE_REQUIRED", "")
+	}
+	view, err := m.session.Workspace.ConfirmRelocation(ctx, id)
+	if err == nil {
+		m.session.View = view
+	}
+	return view, err
 }
 
 func (m *Manager) Projects(ctx context.Context) ([]application.ProjectView, error) {

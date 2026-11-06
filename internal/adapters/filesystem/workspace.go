@@ -43,13 +43,21 @@ func AcquireWorkspace(root string, initialize bool) (*Directory, error) {
 	} else if info, err := os.Stat(root); err != nil || !info.IsDir() {
 		return nil, problem.New("WORKSPACE_NOT_FOUND", "")
 	}
-	lock, err := acquireLock(root)
+	anchor, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
-	anchor, err := os.OpenRoot(root)
+	if !initialize {
+		// A source directory is not a workspace. Reject it before creating a
+		// lock file. The full descriptor is still validated under the lock.
+		if info, err := anchor.Lstat("workspace.json"); err != nil || !info.Mode().IsRegular() {
+			_ = anchor.Close()
+			return nil, problem.New("WORKSPACE_IDENTITY_INVALID", "")
+		}
+	}
+	lock, err := acquireLock(root)
 	if err != nil {
-		_ = lock.Close()
+		_ = anchor.Close()
 		return nil, err
 	}
 	return &Directory{Root: anchor, Path: root, lock: lock}, nil

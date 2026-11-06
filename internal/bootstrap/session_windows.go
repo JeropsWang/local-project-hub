@@ -105,5 +105,5 @@ func newSession(ctx context.Context, req application.InitWorkspaceRequest, creat
 	success = true
 	return &services.Session{Workspace: ws, View: view, Projects: application.NewProjectService(ws, contract.DecodeProject),
 		Checks: checks, Plans: plans, Tasks: tasks, Lifecycle: lifecycle, Bundles: bundles,
-		Containers: containers, Resources: factory.repo.(ports.ResourceRepository)}, nil
+		Containers: containers, Resources: factory.repo.(ports.ResourceRepository), CloseProcesses: processes.Close}, nil
 }
