@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { call } from "../services/client";
+import { call, chooseWorkspaceDirectory } from "../services/client";
 
 export interface Workspace {
   name: string;
@@ -17,7 +17,10 @@ export function WorkspacePage({ onOpen }: { onOpen: (view: Workspace) => void })
     setBusy(true);
     setError("");
     try {
-      onOpen(await call<Workspace>("SelectWorkspace", { root: root.trim(), name: name.trim() }, create));
+      const directory = root.trim() || await chooseWorkspaceDirectory();
+      if (!directory) return;
+      setRoot(directory);
+      onOpen(await call<Workspace>("SelectWorkspace", { root: directory, name: name.trim() }, create));
     } catch (cause) {
       setError(String(cause));
     } finally {
@@ -28,12 +31,15 @@ export function WorkspacePage({ onOpen }: { onOpen: (view: Workspace) => void })
   return (
     <section className="setup">
       <h1>选择工作空间</h1>
-      <p>项目登记、独立环境和运行记录将保存在这里。新建时请选择空目录。</p>
-      <label>工作空间路径<input value={root} onChange={(event) => setRoot(event.target.value)} placeholder="D:\\Workspaces\\ProjectHub" /></label>
+      <p>先选一个文件夹保存项目配置和运行记录。进入工作台后，可以查看本机 Docker 容器、登记项目和迁移配置。</p>
+      <label>工作空间路径（可选）
+        <input value={root} onChange={(event) => setRoot(event.target.value)} placeholder={"D:\\Workspaces\\ProjectHub"} />
+      </label>
+      <p>留空会打开 Windows 文件夹选择器。新建时请选择一个空目录，或在对话框里创建目录。</p>
       <label>工作空间名称<input value={name} onChange={(event) => setName(event.target.value)} /></label>
       <div className="actions">
-        <button disabled={busy || !root.trim() || !name.trim()} onClick={() => void open(true)}>新建工作空间</button>
-        <button className="secondary" disabled={busy || !root.trim()} onClick={() => void open(false)}>打开已有目录</button>
+        <button disabled={busy || !name.trim()} onClick={() => void open(true)}>选择目录并新建</button>
+        <button className="secondary" disabled={busy} onClick={() => void open(false)}>打开已有工作空间</button>
       </div>
       {error && <p role="alert">{error}</p>}
     </section>

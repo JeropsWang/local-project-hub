@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { resolveTask, submitPlan, type Plan, type TaskView } from "../business/tasks";
-import { call, onExitRequested } from "../services/client";
+import { call, chooseImportArchive, onExitRequested } from "../services/client";
 import type { Workspace } from "./WorkspacePage";
 import { ConfigurationEditor } from "./ConfigurationEditor";
 
@@ -89,7 +89,7 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
     <div className="library">
       <aside>
         <h2>项目库</h2>
-        {projects.length === 0 && <p>从配置包导入第一个项目。</p>}
+        {projects.length === 0 && <p>这里会显示已登记的项目。</p>}
         {projects.map((item) => (
           <button key={item.document.projectId} className="project" aria-pressed={selected === item.document.projectId}
             onClick={() => { setSelected(item.document.projectId); setProfile(""); setReport(undefined); }}>
@@ -104,6 +104,14 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
           <button className="secondary" disabled={busy} onClick={() => void exit()}>安全退出</button>
         </div>
         {workspace.state !== "ready" && <p role="alert">这个工作空间需要重新绑定。</p>}
+        {projects.length === 0 && <section>
+          <h2>开始使用</h2>
+          <p>可以先查看 Docker Desktop 中已有的容器。有项目配置包时，选择 ZIP 预览并登记项目，随后可选中项目进行环境检测。</p>
+          <div className="actions">
+            <a href="#docker">查看 Docker 容器</a>
+            <a href="#transfer">导入项目配置</a>
+          </div>
+        </section>}
         <ConfigurationEditor key={project ? `${selected}:${project.revision}` : "new"}
           document={project?.document} revision={project?.revision} disabled={disabled}
           perform={perform} refresh={refresh} />
@@ -121,7 +129,7 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
             {report !== undefined && <pre aria-label="环境检测结果">{JSON.stringify(report, null, 2)}</pre>}
           </section>
         )}
-        <section>
+        <section id="docker">
           <h2>Docker 容器</h2>
           <button className="secondary" disabled={busy} onClick={() => void perform(async () =>
             setContainers(await call<Container[]>("Containers")))}>刷新 Docker 清单</button>
@@ -134,10 +142,17 @@ export function LibraryPage({ workspace }: { workspace: Workspace }) {
               {container.projectIds?.map((id) => projects.find((item) => item.document.projectId === id)?.document.name || id).join("、")}</p>
           </div>)}
         </section>
-        <section>
+        <section id="transfer">
           <h2>配置迁移</h2>
           <label>ZIP 文件路径<input value={archive} onChange={(event) => { setArchive(event.target.value); setImported(undefined); }} placeholder="D:\\Exports\\project.zip" /></label>
           <div className="actions">
+            <button disabled={disabled} onClick={() => void perform(async () => {
+              const path = await chooseImportArchive();
+              if (!path) return;
+              setArchive(path);
+              setImported(undefined);
+              setImported(await call<ImportPreview>("PreviewImport", path));
+            })}>选择 ZIP 并预览</button>
             <button className="secondary" disabled={disabled || !archive.trim()} onClick={() => void perform(async () =>
               setImported(await call<ImportPreview>("PreviewImport", archive.trim())))}>预览导入</button>
             <button className="secondary" disabled={disabled || !ref || !archive.trim()} onClick={() => void perform(async () =>
