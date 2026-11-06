@@ -1,0 +1,145 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.layout:has(.details) {
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 33%);
+}
+
+.inventory,
+.details,
+.notice,
+.empty {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.inventory {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px;
+}
+
+.filter select {
+  width: auto;
+}
+
+.count {
+  display: inline;
+  color: var(--muted);
+}
+
+.table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 11px 12px;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+.table th:nth-child(2) {
+  width: 22%;
+}
+
+.table th:nth-child(3) {
+  width: 32%;
+}
+
+.table td a {
+  font-weight: 650;
+}
+
+.table small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.table tr[data-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+
+.details,
+.notice,
+.empty {
+  padding: 14px;
+}
+
+.inventory .empty {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.notice {
+  margin-bottom: 14px;
+}
+
+.details dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 16px 0 20px;
+}
+
+.details dt {
+  color: var(--muted);
+}
+
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.details li + li {
+  margin-top: 8px;
+}
+
+.detailHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  .layout:has(.details) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .details {
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 530px) {
+  .table th,
+  .table td {
+    padding-inline: 6px;
+  }
+}

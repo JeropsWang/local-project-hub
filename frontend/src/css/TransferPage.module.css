@@ -1,0 +1,49 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.panel > h2 {
+  margin-bottom: 4px;
+}
+
+.panel p {
+  overflow-wrap: anywhere;
+}
+
+.preview,
+.confirmation {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.preview h3,
+.confirmation h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.preview > button {
+  margin-top: 12px;
+}
+
+.confirmation code {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

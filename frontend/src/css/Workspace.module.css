@@ -1,0 +1,22 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 26px;
+}
+.card {
+  width: min(100%, 590px);
+  padding: clamp(20px, 4vw, 34px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.path {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.path > label { flex: 1; min-width: min(100%, 220px); margin-bottom: 0; }
+.path + p { margin-bottom: 18px; }

@@ -56,6 +56,15 @@ func (m *Manager) Task(ctx context.Context, id task.ID) (task.View, error) {
 	return session.Tasks.Get(ctx, id)
 }
 
+// TaskEvents continues a task's durable event feed from the renderer cursor.
+func (m *Manager) TaskEvents(ctx context.Context, id task.ID, after application.EventCursor) ([]application.Event, error) {
+	session, err := m.current()
+	if err != nil {
+		return nil, err
+	}
+	return session.Tasks.Events(ctx, id, after)
+}
+
 // Cancel delegates to the scheduler so a running operation stops at a safe point.
 func (m *Manager) Cancel(ctx context.Context, id task.ID) (task.View, error) {
 	session, err := m.current()

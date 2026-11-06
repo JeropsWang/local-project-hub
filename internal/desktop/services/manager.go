@@ -9,6 +9,7 @@ import (
 
 	"github.com/JeropsWang/local-project-hub/internal/application"
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
+	"github.com/JeropsWang/local-project-hub/internal/domain/project"
 	"github.com/JeropsWang/local-project-hub/internal/ports"
 )
 
@@ -21,6 +22,8 @@ type Session struct {
 	Tasks          *application.TaskService
 	Lifecycle      *application.LifecycleService
 	Bundles        *application.BundleService
+	RunHistory     *application.RunHistoryService
+	DiscoverSource func(context.Context, string) (project.SourceDiscovery, error)
 	Containers     ports.ContainerAdapter
 	Resources      ports.ResourceRepository
 	CloseProcesses func() error
@@ -103,11 +106,64 @@ func (m *Manager) ConfirmRelocation(ctx context.Context, id application.Workspac
 }
 
 func (m *Manager) Projects(ctx context.Context) ([]application.ProjectView, error) {
+	return m.ListProjects(ctx, application.ProjectQuery{Limit: 100})
+}
+
+// ListProjects returns one filtered page using the shared query contract.
+func (m *Manager) ListProjects(ctx context.Context, query application.ProjectQuery) ([]application.ProjectView, error) {
 	session, err := m.current()
 	if err != nil {
 		return nil, err
 	}
-	return session.Projects.List(ctx, application.ProjectQuery{Limit: 100})
+	return session.Projects.List(ctx, query)
+}
+
+// Project resolves the exact route identity independently of library pagination.
+func (m *Manager) Project(ctx context.Context, id application.ProjectID) (application.ProjectView, error) {
+	session, err := m.current()
+	if err != nil {
+		return application.ProjectView{}, err
+	}
+	return session.Projects.Get(ctx, id)
+}
+
+// ProjectCover returns a portable raster from the current committed revision.
+func (m *Manager) ProjectCover(ctx context.Context, id application.ProjectID) (string, error) {
+	session, err := m.current()
+	if err != nil {
+		return "", err
+	}
+	return session.Projects.Cover(ctx, id)
+}
+
+// InspectSource probes fixed metadata names within a user-selected local directory.
+func (m *Manager) InspectSource(ctx context.Context, root string) (project.SourceDiscovery, error) {
+	session, err := m.current()
+	if err != nil {
+		return project.SourceDiscovery{}, err
+	}
+	return session.DiscoverSource(ctx, root)
+}
+
+// Binding returns an optional machine-local locator or opaque credential reference.
+func (m *Manager) Binding(ctx context.Context, id application.ProjectID, key string) (*project.Binding, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.session == nil {
+		return nil, problem.New("WORKSPACE_REQUIRED", "")
+	}
+	if m.session.View.State != "ready" {
+		return nil, problem.New("WORKSPACE_REBIND_REQUIRED", "")
+	}
+	binding, err := m.session.Workspace.Binding(ctx, id, key)
+	var code *problem.Error
+	if errors.As(err, &code) && code.Code == "BINDING_MISSING" {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &binding, nil
 }
 
 func (m *Manager) Register(ctx context.Context, req application.RegisterProjectRequest) (application.ProjectView, error) {

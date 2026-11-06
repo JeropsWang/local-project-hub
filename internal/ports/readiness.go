@@ -19,5 +19,6 @@ type ProcessStatus interface {
 
 // ProcessLogs separates bounded log viewing from process-control authority.
 type ProcessLogs interface {
+	HasLog(run.Identity) bool
 	ReadLog(context.Context, run.Identity, string, int) (run.LogPage, error)
 }

@@ -2,6 +2,7 @@ import { call } from "../services/client";
 
 export interface TaskView {
   id: string;
+  projectId?: string;
   kind: string;
   state: string;
   cancelable: boolean;
@@ -11,6 +12,7 @@ export interface TaskView {
 
 export interface Plan {
   id: string;
+  projectId?: string;
   fingerprint: string;
   steps: { id: string; action: string; effect: string }[];
   warnings?: string[];

@@ -13,6 +13,11 @@ type RevisionArchiveReader interface {
 	ExportRevision(context.Context, project.Ref) (bundle.ExportInput, error)
 }
 
+// RevisionFileReader reads a bounded, verified file from a committed revision.
+type RevisionFileReader interface {
+	ReadRevisionFile(context.Context, project.ID, int32, string, int64) ([]byte, error)
+}
+
 type ArchiveWriter interface {
 	Inspect(bundle.ExportInput) (bundle.Closure, error)
 	Write(context.Context, bundle.ExportInput) (bundle.ExportResult, error)

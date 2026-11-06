@@ -12,3 +12,9 @@ type RunRepository interface {
 	ActiveRuns(context.Context) ([]run.Record, error)
 	UpdateRun(context.Context, run.Record, int64) error
 }
+
+// RunHistoryRepository serves bounded project-scoped history without granting control.
+type RunHistoryRepository interface {
+	Run(context.Context, string) (run.Record, error)
+	RecentRuns(context.Context, string) ([]run.Record, error)
+}

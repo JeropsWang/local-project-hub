@@ -23,6 +23,12 @@ type Source struct {
 	RefLabel string `json:"refLabel,omitempty"`
 }
 
+// SourceDiscovery lists recognizable declarations in a chosen source directory.
+type SourceDiscovery struct {
+	Name    string   `json:"name"`
+	Markers []string `json:"markers"`
+}
+
 // Profile selects entry units and explicitly enabled optional features.
 type Profile struct {
 	Label      string   `json:"label"`

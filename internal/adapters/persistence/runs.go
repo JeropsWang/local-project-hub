@@ -78,6 +78,31 @@ func (s *Store) Run(ctx context.Context, id string) (run.Record, error) {
 	return scanRun(s.db.QueryRowContext(ctx, "SELECT immutable_plan,identity_json,state FROM runs WHERE run_id=?", id))
 }
 
+// RecentRuns loads a bounded history in journal insertion order, including
+// stopped runs whose immutable configuration still explains their behavior.
+func (s *Store) RecentRuns(ctx context.Context, projectID string) ([]run.Record, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT immutable_plan,identity_json,state FROM runs WHERE project_id=? ORDER BY rowid DESC LIMIT 100",
+		projectID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []run.Record{}
+	for rows.Next() {
+		record, err := scanRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		if string(record.Snapshot.ProfileRef.ProjectID) != projectID {
+			return nil, problem.New("RUN_INVALID", "")
+		}
+		result = append(result, record)
+	}
+	return result, rows.Err()
+}
+
 // ActiveRuns includes uncertain starts/stops, newest first for reverse shutdown.
 func (s *Store) ActiveRuns(ctx context.Context) ([]run.Record, error) {
 	rows, err := s.db.QueryContext(
