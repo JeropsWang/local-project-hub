@@ -234,7 +234,7 @@ func (s *Store) ConfirmRelocation(ctx context.Context, id string) (workspace.Vie
 			return workspace.View{}, err
 		}
 	}
-	for _, statement := range []string{"DELETE FROM bindings", "DELETE FROM resources", "UPDATE plans SET state='invalidated'"} {
+	for _, statement := range []string{"DELETE FROM bindings", "DELETE FROM resources", "DELETE FROM import_journal WHERE phase='preview'", "UPDATE plans SET state='invalidated'"} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return workspace.View{}, err
 		}

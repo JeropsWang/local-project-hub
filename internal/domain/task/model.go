@@ -2,6 +2,7 @@
 package task
 
 import (
+	"github.com/JeropsWang/local-project-hub/internal/domain/bundle"
 	"github.com/JeropsWang/local-project-hub/internal/domain/check"
 	"github.com/JeropsWang/local-project-hub/internal/domain/preparation"
 	"github.com/JeropsWang/local-project-hub/internal/domain/project"
@@ -63,6 +64,7 @@ type Step struct {
 
 // Plan is authored and stored by the backend; clients submit only its ID and fingerprint.
 type Plan struct {
+	ImportSnapshot     *bundle.ImportPlan `json:"importSnapshot,omitempty"`
 	ID                 PlanID             `json:"id"`
 	Kind               Kind               `json:"kind"`
 	WorkspaceID        string             `json:"workspaceId"`

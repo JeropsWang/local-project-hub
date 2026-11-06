@@ -28,23 +28,30 @@ func (s *ProjectService) validate(req RegisterProjectRequest) ([]byte, error) {
 	if _, err = s.decode(data); err != nil {
 		return nil, err
 	}
+	if err = validateBindings(req.Bindings); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func validateBindings(bindings []project.Binding) error {
 	keys := map[string]bool{}
-	for _, binding := range req.Bindings {
+	for _, binding := range bindings {
 		if !bindingKey.MatchString(binding.Key) || keys[binding.Key] {
-			return nil, problem.New("BINDING_INVALID", "")
+			return problem.New("BINDING_INVALID", "")
 		}
 		keys[binding.Key] = true
 		if binding.Kind == "secret" {
 			if binding.SecretRef == "" || binding.LocalLocator != "" {
-				return nil, problem.New("BINDING_SECRET_REFERENCE_REQUIRED", "")
+				return problem.New("BINDING_SECRET_REFERENCE_REQUIRED", "")
 			}
 		} else if binding.Kind != "path" && binding.Kind != "resource" && binding.Kind != "runtime" {
-			return nil, problem.New("BINDING_KIND_INVALID", "")
+			return problem.New("BINDING_KIND_INVALID", "")
 		} else if binding.LocalLocator == "" || binding.SecretRef != "" {
-			return nil, problem.New("BINDING_INVALID", "")
+			return problem.New("BINDING_INVALID", "")
 		}
 	}
-	return data, nil
+	return nil
 }
 
 var bindingKey = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)

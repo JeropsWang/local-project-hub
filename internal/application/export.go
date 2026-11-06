@@ -107,6 +107,9 @@ func exportFingerprint(input bundle.ExportInput) string {
 
 // Execute publishes only after the stored plan and revision have been checked.
 func (s *BundleService) Execute(ctx context.Context, plan task.Plan, control ports.TaskControl) error {
+	if plan.Kind == task.Import {
+		return s.executeImport(ctx, plan, control)
+	}
 	if plan.Kind != task.Export || s.writer == nil {
 		return problem.New("EXPORT_EXECUTOR_UNAVAILABLE", "")
 	}

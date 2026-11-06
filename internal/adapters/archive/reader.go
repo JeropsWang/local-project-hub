@@ -16,13 +16,14 @@ import (
 	"github.com/JeropsWang/local-project-hub/internal/adapters/filesystem"
 	"github.com/JeropsWang/local-project-hub/internal/domain/bundle"
 	"github.com/JeropsWang/local-project-hub/internal/domain/problem"
+	"github.com/JeropsWang/local-project-hub/internal/domain/project"
 )
 
 type Reader struct{}
 
-// InspectArchive validates a bounded byte snapshot without extracting files.
-func (Reader) InspectArchive(ctx context.Context, source string) (bundle.Inspection, error) {
-	var result bundle.Inspection
+// ReadArchive validates a bounded byte snapshot without extracting files.
+func (Reader) ReadArchive(ctx context.Context, source string) (bundle.ImportPayload, error) {
+	var result bundle.ImportPayload
 	if !filepath.IsAbs(source) {
 		return result, problem.New("IMPORT_SOURCE_INVALID", "")
 	}
@@ -32,6 +33,9 @@ func (Reader) InspectArchive(ctx context.Context, source string) (bundle.Inspect
 	}
 	defer root.Close()
 	name := filepath.Base(source)
+	if project.ValidateRelativePath(name) != nil || name == "." {
+		return result, problem.New("IMPORT_SOURCE_INVALID", "")
+	}
 	info, err := root.Lstat(name)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > bundle.MaxArchive {
 		return result, problem.New("IMPORT_SOURCE_INVALID", "")
@@ -53,17 +57,20 @@ func (Reader) InspectArchive(ctx context.Context, source string) (bundle.Inspect
 	if err != nil {
 		return result, err
 	}
-	result = bundle.Inspection{
+	result.Inspection = bundle.Inspection{
 		Identity:         bundle.Digest(raw),
 		Document:         doc,
 		RequiredBindings: manifest.ExternalBindingKeys,
 	}
 	for _, file := range doc.Files {
 		if file.Role == "script" {
-			result.Warnings = []string{"SCRIPT_DYNAMIC_REFERENCES_UNVERIFIED"}
+			result.Inspection.Warnings = []string{"SCRIPT_DYNAMIC_REFERENCES_UNVERIFIED"}
 			break
 		}
 	}
+	result.Project = files[bundle.ProjectFile]
+	delete(files, bundle.ProjectFile)
+	result.Files = files
 	return result, nil
 }
 

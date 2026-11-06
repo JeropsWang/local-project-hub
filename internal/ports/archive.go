@@ -19,5 +19,10 @@ type ArchiveWriter interface {
 }
 
 type ArchiveReader interface {
-	InspectArchive(context.Context, string) (bundle.Inspection, error)
+	ReadArchive(context.Context, string) (bundle.ImportPayload, error)
+}
+
+type ImportPreviewRepository interface {
+	SaveImportPreview(context.Context, string, bundle.ImportPlan) error
+	LoadImportPreview(context.Context, string) (bundle.ImportPlan, error)
 }
