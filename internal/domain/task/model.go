@@ -73,6 +73,7 @@ type Plan struct {
 	Warnings           []string           `json:"warnings"`
 	ResourceIDs        []string           `json:"resourceIds"`
 	RunIDs             []string           `json:"runIds,omitempty"`
+	ExportDestination  string             `json:"exportDestination,omitempty"`
 	RunSnapshot        *run.Snapshot      `json:"runSnapshot,omitempty"`
 	SourceConstraints  []check.Constraint `json:"sourceConstraints"`
 	ProjectPreparation *preparation.Plan  `json:"projectPreparation,omitempty"`

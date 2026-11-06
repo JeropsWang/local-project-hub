@@ -343,6 +343,12 @@ func (s *PlanService) input(ctx context.Context, ref ProfileRef) (planInput, pro
 
 // validate compares fresh machine/configuration inputs; plan timestamps are deliberately excluded.
 func (s *PlanService) validate(ctx context.Context, plan task.Plan) error {
+	if plan.Kind == task.Export {
+		s.workspaces.mu.RLock()
+		defer s.workspaces.mu.RUnlock()
+		_, err := exportPlanInput(ctx, s.workspaces.current, plan)
+		return err
+	}
 	if plan.Kind == task.Start && plan.RunSnapshot != nil {
 		s.workspaces.mu.RLock()
 		repo := s.workspaces.current
