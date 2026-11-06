@@ -12,6 +12,56 @@ import (
 
 type pendingContainers struct{ stops int }
 
+func (p *pendingContainers) VerifyEngine(context.Context, string, string) error { return nil }
+
+func TestPendingComposeRepairRequiresExplicitStableEvidence(t *testing.T) {
+	ctx := context.Background()
+	ws := NewWorkspaceService(persistence.NewFactory())
+	if _, err := ws.Initialize(ctx, InitWorkspaceRequest{Root: t.TempDir(), Name: "pending repair"}); err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	store := ws.current.(ports.ResourceRepository)
+	record, err := store.SaveResource(
+		ctx,
+		resource.Record{
+			SchemaVersion: "1.0",
+			ResourceID:    "22222222-2222-4222-8222-222222222222",
+			Control:       "managed",
+			Engine:        "desktop",
+			EngineID:      "fixture-engine",
+			ControlGrant:  "33333333-3333-4333-8333-333333333333",
+			PendingStart:  "44444444-4444-4444-8444-444444444444",
+			Active:        true,
+		},
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := &pendingContainers{}
+	service := NewResourceService(ws, adapter, nil)
+	preview, err := service.PreviewPendingRepair(ctx, record.ResourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.RepairPendingStart(ctx, preview, false); err == nil {
+		t.Fatal("empty inventory cleared intent without operator confirmation")
+	}
+	stale := preview
+	stale.OperationID = "obsolete"
+	if err = service.RepairPendingStart(ctx, stale, true); err == nil {
+		t.Fatal("stale confirmation cleared intent")
+	}
+	if err = service.RepairPendingStart(ctx, preview, true); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Resource(ctx, record.ResourceID)
+	if err != nil || got.Active || got.PendingStart != "" || adapter.stops != 0 {
+		t.Fatal("repair did not converge without external effects", err)
+	}
+}
+
 func (p *pendingContainers) Inventory(context.Context, string) ([]ports.ContainerObservation, error) {
 	return nil, nil
 }

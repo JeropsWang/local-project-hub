@@ -123,6 +123,9 @@ func (s *Store) SaveResource(ctx context.Context, record resource.Record, expect
 			return resource.Record{}, problem.New("RESOURCE_GRANT_CONFLICT", "")
 		}
 	}
+	if err := uniquePhysicalResource(ctx, tx, record); err != nil {
+		return resource.Record{}, err
+	}
 	data, err := json.Marshal(record)
 	if err != nil {
 		return resource.Record{}, err
@@ -197,6 +200,9 @@ func (s *Store) mutateResource(ctx context.Context, id string, change func(*reso
 		return err
 	}
 	if err := change(&record); err != nil {
+		return err
+	}
+	if err := uniquePhysicalResource(ctx, tx, record); err != nil {
 		return err
 	}
 	data, err := json.Marshal(record)
@@ -317,6 +323,7 @@ func (s *Store) BeginCompose(ctx context.Context, spec ports.ComposeSpec, attemp
 			return problem.New("RESOURCE_START_PENDING", spec.ResourceID)
 		}
 		record.PendingStart = attempt
+		record.ReconciledStart = ""
 		record.Active = true
 		return nil
 	})

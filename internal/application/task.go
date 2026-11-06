@@ -389,6 +389,17 @@ func (s *TaskService) execute(store ports.TaskRepository, record task.Record, pl
 	}
 	var waiting *task.WaitingError
 	if errors.As(err, &waiting) {
+		s.admissionMu.Lock()
+		defer s.admissionMu.Unlock()
+		// A normal stop may yield after Quit requested cancellation at a safe
+		// point. Its run journal still owns the unfinished business operation;
+		// release the old task's claims so the sole exit task can continue it.
+		// Native stop reuses the frozen operation ID and never resends a save.
+		current, readErr := store.Task(ctx, record.View.ID)
+		if s.exitID != "" && plan.Kind != task.Exit && readErr == nil && current.View.State == task.CancelRequested {
+			s.finish(store, record.View.ID, task.Cancelled, nil)
+			return
+		}
 		s.finish(
 			store,
 			record.View.ID,

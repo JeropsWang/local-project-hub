@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	winio "github.com/Microsoft/go-winio"
@@ -30,6 +31,7 @@ type engineConnection struct {
 
 // NativeContainerAdapter accepts configured local endpoints; input JSON cannot add arbitrary URLs.
 type NativeContainerAdapter struct {
+	activeStarts  sync.Map
 	engines       map[string]engineConnection
 	authorization ports.ContainerAuthorization
 	workspace     string

@@ -14,6 +14,7 @@ type ResourceRepository interface {
 	AcquireResource(context.Context, string, string, resource.Use) error
 	ReleaseResource(context.Context, string, resource.Use) error
 	MarkResourceStopped(context.Context, string, string) error
+	ClearSettledStart(context.Context, string, string, string) error
 }
 
 // ComposeAuthorization validates backend-authored source bindings before a CLI effect

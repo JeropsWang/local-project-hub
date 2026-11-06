@@ -221,6 +221,12 @@ func (s *ResourceService) GrantManaged(ctx context.Context, req ManagedResourceR
 			if item.ConfigHash == "" {
 				return resource.Record{}, problem.New("RESOURCE_CONFIG_UNVERIFIED", spec.ResourceID)
 			}
+			if spec.ServiceConfigHashes[service] == "" {
+				return resource.Record{}, problem.New("RESOURCE_CONFIG_UNVERIFIED", spec.ResourceID)
+			}
+			if spec.ServiceConfigHashes[service] != item.ConfigHash {
+				return resource.Record{}, problem.New("RESOURCE_RUNNING_CONFIG_MISMATCH", spec.ResourceID)
+			}
 			item.Identity.ControlID = grant
 			record.Active = record.Active || item.Running
 			record.Instances = append(record.Instances, item.Identity)
@@ -284,6 +290,9 @@ func (s *ResourceService) StopUnused(ctx context.Context, id string, globalExit 
 		return result, nil
 	case record.Shared && !globalExit:
 		result.Reason = "shared-kept-running"
+		return result, nil
+	case !record.Active && record.ReconciledStart != "":
+		result.Stopped = true
 		return result, nil
 	}
 	for i := len(record.Instances) - 1; i >= 0; i-- {

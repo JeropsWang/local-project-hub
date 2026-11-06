@@ -51,6 +51,7 @@ type Record struct {
 	Users                 []Use             `json:"users"`
 	StopAttempts          map[string]string `json:"stopAttempts"`
 	PendingStart          string            `json:"pendingStart,omitempty"`
+	ReconciledStart       string            `json:"reconciledStart,omitempty"`
 }
 
 // Validate rejects malformed local records before storage, without inventing authority.
@@ -92,6 +93,7 @@ func Fingerprint(record Record) string {
 	record.Users = nil
 	record.StopAttempts = nil
 	record.PendingStart = ""
+	record.ReconciledStart = ""
 	record.Active = false
 	data, _ := json.Marshal(struct {
 		Record Record

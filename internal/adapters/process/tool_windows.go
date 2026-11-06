@@ -1,6 +1,7 @@
 package process
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os/exec"
@@ -51,6 +52,9 @@ func (r nativeToolRunner) RunTool(ctx context.Context, spec ports.ProcessCommand
 	}
 	command := exec.Command(spec.Executable, spec.Args...)
 	command.Dir = spec.CWD
+	if len(spec.Input) > 0 {
+		command.Stdin = bytes.NewReader(spec.Input)
+	}
 	command.Env = []string{}
 	for name, value := range spec.Environment {
 		command.Env = append(command.Env, name+"="+value)

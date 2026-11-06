@@ -30,6 +30,7 @@ func (c *resourceContainers) Stop(context.Context, run.Identity) (ports.Containe
 }
 func (c *resourceContainers) PreviewCompose(ctx context.Context, spec ports.ComposeSpec) (ports.ComposePreview, error) {
 	spec.ConfigFingerprint = "fixture-source-config"
+	spec.ServiceConfigHashes = map[string]string{"database": "actual-container-config"}
 	return ports.ComposePreview{Spec: spec, ProjectName: spec.ProjectName, Fingerprint: spec.ConfigFingerprint}, nil
 }
 
@@ -49,6 +50,32 @@ func referenceObservation() ports.ContainerObservation {
 		WorkingDir:     `D:\fixture`,
 		ConfigHash:     "actual-container-config",
 		Running:        true,
+	}
+}
+
+func TestAdoptionRejectsStaleRunningConfiguration(t *testing.T) {
+	ws, _ := services(t)
+	observed := referenceObservation()
+	observed.ConfigHash = "stale-running-configuration"
+	containers := &resourceContainers{inventory: []ports.ContainerObservation{observed}}
+	resources := application.NewResourceService(ws, containers, containers)
+	_, err := resources.GrantManaged(
+		context.Background(),
+		application.ManagedResourceRequest{
+			Spec: ports.ComposeSpec{
+				ResourceID:       resourceFixtureID,
+				Engine:           "desktop",
+				ExpectedEngineID: "fixture-engine",
+				ProjectName:      "existing-stack",
+				WorkingDir:       `D:\fixture`,
+				Files:            []ports.ComposeFile{{Path: `D:\fixture\base.yml`, SHA256: "fixture-file"}},
+				Services:         []string{"database"},
+			},
+			AdoptExisting: true,
+		},
+	)
+	if err == nil || err.Error() != "RESOURCE_RUNNING_CONFIG_MISMATCH" {
+		t.Fatal("same-path stale configuration acquired current grant", err)
 	}
 }
 

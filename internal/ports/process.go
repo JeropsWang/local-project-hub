@@ -14,6 +14,7 @@ type ProcessCommand struct {
 	Args        []string
 	CWD         string
 	Environment map[string]string
+	Input       []byte
 }
 
 // ProcessScript carries reviewed immutable bytes; ${file:id} arguments resolve to

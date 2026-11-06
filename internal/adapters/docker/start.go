@@ -24,6 +24,10 @@ const managerOperationLabel = "io.localprojecthub.operation-id"
 // Start performs only a granted fixed-source Compose operation. Post-operation
 // inventory is retained even on CLI failure so rollback cannot lose partial effects.
 func (a *NativeContainerAdapter) Start(ctx context.Context, spec ports.ComposeSpec) ([]run.Identity, error) {
+	if _, busy := a.activeStarts.LoadOrStore(spec.ResourceID, struct{}{}); busy {
+		return nil, problem.New("RESOURCE_START_PENDING", spec.ResourceID)
+	}
+	defer a.activeStarts.Delete(spec.ResourceID)
 	authority, ok := a.authorization.(ports.ComposeAuthorization)
 	if !ok {
 		return nil, problem.New("RESOURCE_CONTROL_NOT_GRANTED", "")
@@ -121,6 +125,12 @@ func (a *NativeContainerAdapter) Start(ctx context.Context, spec ports.ComposeSp
 		}
 	}
 	return instances, nil
+}
+
+// PendingControllerActive reports this manager's live controller calls.
+func (a *NativeContainerAdapter) PendingControllerActive(id string) bool {
+	_, active := a.activeStarts.Load(id)
+	return active
 }
 
 func (a *NativeContainerAdapter) composeOverlay(spec ports.ComposeSpec, attempt string) (ports.ComposeFile, error) {

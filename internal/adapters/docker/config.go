@@ -40,6 +40,18 @@ func openDockerWorkspace(workspace string) (*os.Root, error) {
 	return root, nil
 }
 
+// VerifyEngine checks the endpoint even when inventory contains no containers.
+func (a *NativeContainerAdapter) VerifyEngine(ctx context.Context, alias, expected string) error {
+	actual, err := a.engineInfo(ctx, alias)
+	if err != nil {
+		return err
+	}
+	if expected == "" || actual != expected {
+		return problem.New("DOCKER_ENGINE_CHANGED", "")
+	}
+	return nil
+}
+
 func composeFileHash(name string) (string, error) {
 	parent, err := filesystem.OpenLocalRoot(filepath.Dir(name))
 	if err != nil {
@@ -86,6 +98,9 @@ func (a *NativeContainerAdapter) PreviewCompose(
 	}
 	spec.Files = slices.Clone(spec.Files)
 	spec.Services = slices.Clone(spec.Services)
+	if err := prepareComposeEnvironment(&spec); err != nil {
+		return result, err
+	}
 	for i, file := range spec.Files {
 		digest, err := composeFileHash(file.Path)
 		if err != nil {
@@ -124,6 +139,12 @@ func (a *NativeContainerAdapter) PreviewCompose(
 		return result, err
 	}
 	spec.Services = ordered
+	if err := collectComposeInputFiles(&spec, config); err != nil {
+		return result, err
+	}
+	if err := a.resolvedComposeHashes(ctx, &spec); err != nil {
+		return result, err
+	}
 	canonical, err := json.Marshal(config)
 	if err != nil {
 		return result, err

@@ -406,6 +406,64 @@ func TestQuitFailureCanResumeOrAbortWithoutDeadlock(t *testing.T) {
 
 type lifecycleControl struct{}
 
+type exitHandoffProcesses struct {
+	lifecycleProcesses
+	entered chan struct{}
+	release chan struct{}
+	calls   int
+}
+
+func (p *exitHandoffProcesses) Stop(_ context.Context, _ run.Identity, _ ports.StopSpec) (ports.StopResult, error) {
+	p.calls++
+	if p.calls == 1 {
+		close(p.entered)
+		<-p.release
+		return ports.StopResult{Accepted: true, Code: "STOP_WAIT_INCOMPLETE"}, nil
+	}
+	return ports.StopResult{Graceful: true}, nil
+}
+
+func TestExitTakesOverTimedOutStopWithoutKeepingOldReservation(t *testing.T) {
+	ws, _, store, doc := lifecycleFixture(t)
+	seedLifecycleRun(t, store, doc)
+	processes := &exitHandoffProcesses{entered: make(chan struct{}), release: make(chan struct{})}
+	plans := NewPlanService(ws, nil)
+	stop := NewStopExecutor(ws, processes, nil)
+	tasks := NewTaskService(ws, plans, map[task.Kind]ports.TaskExecutor{task.Stop: stop})
+	t.Cleanup(func() { _ = tasks.Close(context.Background()) })
+	lifecycle := NewLifecycleService(ws, tasks, stop)
+	ctx := context.Background()
+	plan, err := plans.BuildStop(
+		ctx,
+		project.Ref{ProjectID: project.ID(doc.ProjectID), ProfileID: "development", ExpectedRevision: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := tasks.Submit(
+		ctx,
+		SubmitPlanRequest{PlanID: plan.ID, Fingerprint: plan.Fingerprint, RequestID: "stop-before-exit"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-processes.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stop did not begin")
+	}
+	exit, err := lifecycle.RequestExit(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(processes.release)
+	waitLifecycleTask(t, tasks, exit.ID, task.Succeeded)
+	view, err := tasks.Get(ctx, old.ID)
+	if err != nil || view.State != task.Cancelled {
+		t.Fatalf("old stop retained its reservation: %+v %v", view, err)
+	}
+}
+
 type exitSafePointExecutor struct {
 	entered chan struct{}
 	release chan struct{}

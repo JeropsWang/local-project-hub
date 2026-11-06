@@ -2,7 +2,10 @@ package docker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -24,8 +27,72 @@ type composeFixtureRunner struct {
 	calls  [][]string
 }
 
+func TestComposeEnvironmentInputsInvalidatePreview(t *testing.T) {
+	for _, name := range []string{".env", "service.env"} {
+		t.Run(name, func(t *testing.T) {
+			workspace, source := t.TempDir(), t.TempDir()
+			repo, err := persistence.NewFactory().Initialize(context.Background(), workspace, "env inputs")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer repo.Close()
+			input := filepath.Join(source, "compose.json")
+			if err = os.WriteFile(input, []byte(`{"services":{"database":{"image":"postgres:18"}}}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(filepath.Join(source, name), []byte("DATA_DIR=before\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			runner := &composeFixtureRunner{
+				config: `{"services":{"database":{"image":"postgres:18","env_file":["service.env"]}}}`,
+			}
+			if name == ".env" {
+				runner.config = `{"services":{"database":{"image":"postgres:18"}}}`
+			}
+			adapter := &NativeContainerAdapter{
+				workspace: workspace,
+				runner:    runner,
+				engines:   map[string]engineConnection{"desktop": {pipe: `\\.\pipe\fixture`}},
+			}
+			preview, err := adapter.PreviewCompose(
+				context.Background(),
+				ports.ComposeSpec{
+					ResourceID: fixtureResource,
+					Engine:     "desktop",
+					WorkingDir: source,
+					Files:      []ports.ComposeFile{{Path: input}},
+					Services:   []string{"database"},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(filepath.Join(source, name), []byte("DATA_DIR=after\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			fresh, err := adapter.PreviewCompose(context.Background(), preview.Spec)
+			if err == nil && fresh.Fingerprint == preview.Fingerprint {
+				t.Fatal("environment file changed without invalidating preview")
+			}
+		})
+	}
+}
+
 func (r *composeFixtureRunner) RunCompose(ctx context.Context, invocation ports.ComposeInvocation) ([]byte, error) {
 	r.calls = append(r.calls, slices.Clone(invocation.Arguments))
+	if slices.Contains(invocation.Arguments, "--hash") {
+		var config struct{ Services map[string]any }
+		if json.Unmarshal(invocation.Input, &config) != nil {
+			return nil, problem.New("FIXTURE_INPUT_INVALID", "")
+		}
+		var output strings.Builder
+		for name, service := range config.Services {
+			data, _ := json.Marshal(service)
+			sum := sha256.Sum256(data)
+			fmt.Fprintf(&output, "%s %s\n", name, hex.EncodeToString(sum[:]))
+		}
+		return []byte(output.String()), nil
+	}
 	if slices.Contains(invocation.Arguments, "config") {
 		return []byte(r.config), nil
 	}

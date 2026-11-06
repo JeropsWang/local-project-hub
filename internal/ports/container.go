@@ -14,15 +14,19 @@ type ComposeFile struct {
 
 // ComposeSpec is backend-authored. A nonempty existing project name needs a local grant.
 type ComposeSpec struct {
-	ResourceID        string
-	Engine            string
-	ExpectedEngineID  string
-	ProjectName       string
-	ControlGrant      string
-	WorkingDir        string
-	Files             []ComposeFile
-	Services          []string
-	ConfigFingerprint string
+	ResourceID          string
+	Engine              string
+	ExpectedEngineID    string
+	ProjectName         string
+	ControlGrant        string
+	WorkingDir          string
+	Files               []ComposeFile
+	Services            []string
+	ConfigFingerprint   string
+	EnvironmentFile     *ComposeFile
+	InputHashes         map[string]string
+	ServiceConfigHashes map[string]string
+	ResolvedFingerprint string
 }
 
 // ComposePreview contains a non-secret fingerprint and normalized selected services.
@@ -43,6 +47,7 @@ type ComposeInvocation struct {
 	Pipe      string
 	Arguments []string
 	CWD       string
+	Input     []byte
 }
 
 // ComposeRunner executes only the backend's fixed config/up argument builders.

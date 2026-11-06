@@ -42,6 +42,9 @@ func ComposeArguments(spec ports.ComposeSpec, action string) ([]string, error) {
 		return nil, problem.New("COMPOSE_SPEC_INVALID", "")
 	}
 	args := []string{"compose", "--project-name", project, "--project-directory", spec.WorkingDir}
+	if spec.EnvironmentFile != nil {
+		args = append(args, "--env-file", spec.EnvironmentFile.Path)
+	}
 	for _, file := range spec.Files {
 		if !filepath.IsAbs(file.Path) || strings.HasPrefix(file.Path, `\\`) || strings.ContainsRune(file.Path, 0) {
 			return nil, problem.New("COMPOSE_FILE_INVALID", "")
@@ -58,6 +61,8 @@ func ComposeArguments(spec ports.ComposeSpec, action string) ([]string, error) {
 	switch action {
 	case "config":
 		args = append(args, "config", "--format", "json", "--no-interpolate", "--no-env-resolution", "--no-normalize")
+	case "resolved-config":
+		args = append(args, "config", "--format", "json")
 	case "up":
 		args = append(args, "up", "--detach", "--no-deps", "--no-build", "--no-recreate", "--pull", "never")
 		args = append(args, services...)

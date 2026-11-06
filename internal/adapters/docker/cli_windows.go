@@ -43,6 +43,9 @@ func (r *NativeComposeRunner) RunCompose(ctx context.Context, call ports.Compose
 	if !localPipe.MatchString(call.Pipe) || !validComposeInvocation(call.Arguments) {
 		return nil, problem.New("COMPOSE_ACTION_UNSUPPORTED", "")
 	}
+	if len(call.Input) > 16*1024*1024 || len(call.Input) > 0 && !slices.Contains(call.Arguments, "--hash") {
+		return nil, problem.New("COMPOSE_INPUT_INVALID", "")
+	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	stdout := &composeOutput{limit: 16 * 1024 * 1024, cancel: cancel}
@@ -57,11 +60,12 @@ func (r *NativeComposeRunner) RunCompose(ctx context.Context, call ports.Compose
 		}
 	}
 	env["COMPOSE_ANSI"] = "never"
+	env["COMPOSE_DISABLE_ENV_FILE"] = "1"
 	env["COMPOSE_PROGRESS"] = "plain"
 	env["COMPOSE_PARALLEL_LIMIT"] = "4"
 	err := r.tools.RunTool(
 		ctx,
-		ports.ProcessCommand{Executable: r.executable, Args: args, CWD: call.CWD, Environment: env},
+		ports.ProcessCommand{Executable: r.executable, Args: args, CWD: call.CWD, Environment: env, Input: call.Input},
 		stdout,
 		stderr,
 	)
@@ -84,7 +88,7 @@ func validComposeInvocation(args []string) bool {
 	index, files, project, directory := 1, 0, false, false
 	for index < len(args) {
 		flag := args[index]
-		if flag != "--project-name" && flag != "--project-directory" && flag != "--file" {
+		if flag != "--project-name" && flag != "--project-directory" && flag != "--file" && flag != "--env-file" {
 			break
 		}
 		if index+1 >= len(args) {
@@ -111,6 +115,10 @@ func validComposeInvocation(args []string) bool {
 	}
 	tail := args[index:]
 	if tail[0] == "config" {
+		if slices.Equal(tail, []string{"config", "--format", "json"}) ||
+			slices.Equal(tail, []string{"config", "--hash", "*", "--no-interpolate"}) {
+			return true
+		}
 		return slices.Equal(
 			tail,
 			[]string{"config", "--format", "json", "--no-interpolate", "--no-env-resolution", "--no-normalize"},
