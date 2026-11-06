@@ -68,7 +68,7 @@ export function DockerPage({ projects, selectedID }: DockerPageProps) {
     (filter === "shared" ? container.shared : relation(container) === filter));
 
   return (
-    <section aria-labelledby="docker-heading">
+    <section className={styles.page} aria-labelledby="docker-heading">
       <div className="toolbar">
         <div>
           <h1 id="docker-heading">Docker</h1>
@@ -112,10 +112,10 @@ export function DockerPage({ projects, selectedID }: DockerPageProps) {
                         <a href={containerHref(container.id)} aria-current={container.id === selectedID ? "true" : undefined}>
                           {container.name || container.id.slice(0, 12)}
                         </a>
-                        <small>{container.image}</small>
+                        <small className={styles.image} title={container.image}>{container.image}</small>
                         {container.composeService && <small>Compose 服务 {container.composeService}</small>}
                       </td>
-                      <td><span className="badge" data-tone={container.status === "running" ? "success" : undefined}>{statusLabel(container.status)}</span></td>
+                      <td><span className="badge" data-state={container.status}>{statusLabel(container.status)}</span></td>
                       <td>
                         {relations[relation(container)]}
                         {container.shared && container.control === "reference" && <small>共享资源</small>}
