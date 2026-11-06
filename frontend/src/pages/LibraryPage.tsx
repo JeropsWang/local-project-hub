@@ -60,7 +60,10 @@ export function LibraryPage({ workspace, onWorkspaceChanged }: {
     try {
       await action();
     } catch (cause) {
-      setError(String(cause));
+      const detail = String(cause);
+      setError(detail.includes("BUNDLE_MANIFEST_MISSING")
+        ? "这个 ZIP 缺少管理器配置清单。请选择由 Local Project Hub 导出的配置包。GitHub 下载的源码 ZIP 不能在这里导入。"
+        : detail);
     } finally {
       setBusy(false);
     }
@@ -178,7 +181,8 @@ export function LibraryPage({ workspace, onWorkspaceChanged }: {
         </section>
         <section id="transfer">
           <h2>配置迁移</h2>
-          <label>ZIP 文件路径<input value={archive} onChange={(event) => { setArchive(event.target.value); setImported(undefined); }} placeholder="D:\\Exports\\project.zip" /></label>
+          <p>这里导入由 Local Project Hub 导出的配置包。GitHub 的源码 ZIP 需要先解压，项目接入需另外配置。</p>
+          <label>配置包路径<input value={archive} onChange={(event) => { setArchive(event.target.value); setImported(undefined); }} placeholder={"D:\\Exports\\project.zip"} /></label>
           <div className="actions">
             <button disabled={disabled} onClick={() => void perform(async () => {
               const path = await chooseImportArchive();

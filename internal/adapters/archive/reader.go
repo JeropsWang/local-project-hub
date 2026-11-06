@@ -90,6 +90,11 @@ func validateZIP(ctx context.Context, source io.ReaderAt, size int64) (bundle.Ma
 	if len(reader.File) > bundle.MaxFiles+1 {
 		return fail("BUNDLE_LIMIT", "")
 	}
+	// Reject generic archives before reading their entries. Manager bundles
+	// always have a manifest at the archive root.
+	if !slices.ContainsFunc(reader.File, func(file *zip.File) bool { return file.Name == bundle.ManifestFile }) {
+		return fail("BUNDLE_MANIFEST_MISSING", bundle.ManifestFile)
+	}
 	files := map[string][]byte{}
 	aliases := map[string]bool{}
 	total := 0

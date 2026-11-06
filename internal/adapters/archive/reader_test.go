@@ -5,7 +5,26 @@ import (
 	"bytes"
 	"context"
 	"testing"
+
+	"github.com/JeropsWang/local-project-hub/internal/domain/bundle"
 )
+
+func TestSourceZIPReportsMissingBundleManifest(t *testing.T) {
+	var raw bytes.Buffer
+	writer := zip.NewWriter(&raw)
+	for _, name := range []string{"example-main/", "example-main/README.md"} {
+		if _, err := writer.Create(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := validateZIP(context.Background(), bytes.NewReader(raw.Bytes()), int64(raw.Len()))
+	if err == nil || err.Error() != "BUNDLE_MANIFEST_MISSING" {
+		t.Fatalf("source ZIP should report a missing manifest: %v", err)
+	}
+}
 
 func TestRejectWindowsEscapeAndAliases(t *testing.T) {
 	for _, names := range [][]string{
@@ -14,6 +33,9 @@ func TestRejectWindowsEscapeAndAliases(t *testing.T) {
 	} {
 		var raw bytes.Buffer
 		writer := zip.NewWriter(&raw)
+		if _, err := writer.Create(bundle.ManifestFile); err != nil {
+			t.Fatal(err)
+		}
 		for _, name := range names {
 			entry, err := writer.Create(name)
 			if err != nil {
