@@ -1,7 +1,8 @@
 # Dependencies and generated outputs
 node_modules/
 dist/
-build/
+/build/*
+!/build/windows/
 target/
 coverage/
 .worktrees/

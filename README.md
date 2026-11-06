@@ -2,9 +2,13 @@
 
 面向本地项目的桌面管理工具，计划统一管理项目分组、Docker 容器归属、公共服务依赖、本机进程和可编辑的启停脚本，并提供项目一键导出与导入。
 
-**当前状态：分阶段开发中。管理核心已通过合成项目的启动、回滚和安全退出测试。配置迁移核心已支持固定版本 ZIP 导出、只读预览、事务登记及目标绑定。桌面界面和安装包尚未完成。**
+**当前状态为 Windows x64 开发预览。** 桌面可初始化工作空间、登记和编辑项目配置、检测环境、提交启停计划、查看 Docker 清单及导入导出配置。PersonWeb、WeChatBot 和 typing-tracker 的完整接入仍需分别验收。
 
-代码位于 [feature/windows-manager 开发分支](https://github.com/JeropsWang/local-project-hub/tree/feature/windows-manager)。核心测试使用虚构配置与临时目录，未改动原项目或已有容器。
+开发预览、安装包和 SHA-256 校验文件见 [GitHub Releases](https://github.com/JeropsWang/local-project-hub/releases)。预览安装包按用户安装，依赖 Microsoft Edge WebView2 Evergreen Runtime，暂未签名。
+
+在 Windows x64 上用 Go 1.26.10、Node.js 24 和 PowerShell 执行 `./scripts/build.ps1`，安装包输出至 `build/out`。在无现有安装的测试用户下执行 `./scripts/test-installer.ps1` 可验证安装、覆盖升级、卸载和数据保留。
+
+核心测试使用虚构配置与临时目录。代码位于 [feature/windows-manager 开发分支](https://github.com/JeropsWang/local-project-hub/tree/feature/windows-manager)。
 
 ## 已确认的需求
 
