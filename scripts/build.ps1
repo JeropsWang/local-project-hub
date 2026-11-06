@@ -13,10 +13,23 @@ if (-not $MakeNsis) {
     $tools = Join-Path $out 'tools'
     $MakeNsis = Join-Path $tools 'nsis-3.11/makensis.exe'
     if (-not (Test-Path -LiteralPath $MakeNsis)) {
-        Invoke-WebRequest -Uri 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip' -OutFile $archive
         $expected = 'C7D27F780DDB6CFFB4730138CD1591E841F4B7EDB155856901CDF5F214394FA1'
-        if ((Get-FileHash -LiteralPath $archive).Hash -ne $expected) {
-            throw 'Unexpected NSIS archive checksum'
+        $verified = $false
+        # The redirect endpoint sometimes serves a download page on CI.
+        # Try fixed official mirrors and accept only the locked ZIP bytes.
+        foreach ($mirror in 'master.dl.sourceforge.net', 'netix.dl.sourceforge.net', 'downloads.sourceforge.net') {
+            try {
+                curl.exe --fail --silent --show-error --location --max-time 35 "https://$mirror/project/nsis/NSIS%203/3.11/nsis-3.11.zip" -o $archive
+                if ($LASTEXITCODE -eq 0 -and (Get-FileHash -LiteralPath $archive).Hash -eq $expected) {
+                    $verified = $true
+                    break
+                }
+            } catch {
+                Write-Host "NSIS download failed on $mirror"
+            }
+        }
+        if (-not $verified) {
+            throw 'No NSIS mirror returned the pinned archive checksum'
         }
         Expand-Archive -LiteralPath $archive -DestinationPath $tools -Force
     }
