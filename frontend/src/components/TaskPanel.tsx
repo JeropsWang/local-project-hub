@@ -9,6 +9,11 @@ const states: Record<string, string> = {
   queued: "排队中", running: "执行中", "waiting-user": "等待处理", "cancel-requested": "正在取消",
   succeeded: "成功", failed: "失败", cancelled: "已取消", interrupted: "已中断",
 };
+const recovery: Record<string, string> = {
+  READINESS_TIMEOUT: "依赖或进程在规定时间内未就绪。请检查运行日志，以及容器的健康检查配置。",
+  DOCKER_CONNECTION_FAILED: "无法连接 Docker。请确认 Docker Desktop 已启动，再刷新容器清单。",
+  RESOURCE_CONTROL_REQUIRED: "该资源缺少本机控制授权。请核对资源归属。",
+};
 
 export function TaskPanel() {
   const { tasks, change, setOpen, error } = useTasks();
@@ -32,7 +37,10 @@ export function TaskPanel() {
     {tasks.map((task) => <section className={styles.task} key={task.id}>
       <strong>{kinds[task.kind] ?? task.kind}</strong>
       <span className="badge" data-state={task.state}>{states[task.state] ?? task.state}</span>
-      {task.error && <p>{task.error.message || task.error.code}</p>}
+      {task.error && <p>
+        {recovery[task.error.code] || task.error.message || "操作未完成。"}
+        {" "}<code>{task.error.code}</code>
+      </p>}
       {task.events.length > 0 && <details>
         <summary>执行记录</summary>
         <ol>{task.events.map((event) => <li key={event.seq}>

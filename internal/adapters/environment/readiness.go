@@ -104,6 +104,14 @@ func (a *ReadinessAdapter) WaitReady(ctx context.Context, unit run.UnitPlan, ins
 				var err error
 				ready, err = a.dockerReady(bounded, unit.ResourceID)
 				if err != nil {
+					// A probe in flight can receive a transport error when its
+					// own readiness deadline expires. Preserve the cause.
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					if bounded.Err() != nil {
+						return problem.New("READINESS_TIMEOUT", unit.ID)
+					}
 					return err
 				}
 			}

@@ -1,3 +1,5 @@
+param([switch]$DesktopUI)
+
 $ErrorActionPreference = 'Stop'
 $out = Join-Path (Split-Path -Parent $PSScriptRoot) 'build/out'
 $setup = Join-Path $out 'LocalProjectHub-Setup-x64.exe'
@@ -22,6 +24,15 @@ $installedApp = Join-Path $installed 'LocalProjectHub.exe'
 if ((Get-FileHash $installedApp).Hash -ne (Get-FileHash (Join-Path $out 'LocalProjectHub.exe')).Hash) {
     throw 'Installed application differs from the build'
 }
+$desktopFailure = $null
+if ($DesktopUI) {
+    try {
+        & (Join-Path $PSScriptRoot 'test-installed-desktop.ps1') -Executable $installedApp -TestRoot $testRoot -ScreenshotDir (Join-Path $out 'installed-ui')
+    } catch {
+        # Keep the test install removable even if the desktop session fails.
+        $desktopFailure = $_
+    }
+}
 'workspace data' | Set-Content -LiteralPath $workspace
 $before = (Get-FileHash $workspace).Hash
 Invoke-Setup $setup
@@ -32,3 +43,4 @@ if ((Test-Path $installedApp) -or (Test-Path $uninstallKey) -or (Test-Path $shor
 }
 if ((Get-FileHash $workspace).Hash -ne $before) { throw 'Uninstall changed workspace data' }
 Write-Output 'Install, upgrade and uninstall smoke test passed.'
+if ($desktopFailure) { throw $desktopFailure }
