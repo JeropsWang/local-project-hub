@@ -11,6 +11,9 @@ permissions:
 jobs:
   build:
     runs-on: windows-2025
+    timeout-minutes: 25
+    env:
+      CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -22,10 +25,10 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: ./scripts/build.ps1
-      - run: node --test frontend/tests/*.test.mjs
-      - run: go test -tags desktop ./...
-      - run: go vet -tags desktop ./...
       - run: ./scripts/test-installer.ps1
+      - run: node --test frontend/tests/*.test.mjs
+      - run: go test -p 2 -tags desktop ./...
+      - run: go vet -tags desktop ./...
       - uses: actions/upload-artifact@v4
         with:
           name: LocalProjectHub-Windows-x64

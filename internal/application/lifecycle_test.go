@@ -310,22 +310,31 @@ func TestEditedConfigCannotChangeRunningStop(t *testing.T) {
 
 func waitLifecycleTask(t *testing.T, s *TaskService, id task.ID, state task.State) TaskView {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		view, err := s.Get(context.Background(), id)
+	// An exit can journal several durable SQLite transitions on a shared
+	// Windows runner. The wait is a test bound, not a product stop timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	var last TaskView
+	for {
+		view, err := s.Get(ctx, id)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("read task while waiting for %s: %v (last state: %+v)", state, err, last)
 		}
+		last = view
 		if view.State == state {
 			return view
 		}
-		if view.State == task.Failed {
-			t.Fatalf("task failed: %+v", view)
+		if task.Terminal(view.State) {
+			t.Fatalf("expected %s, got terminal task: %+v", state, view)
 		}
-		time.Sleep(5 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			t.Fatalf("did not reach %s; last task: %+v", state, last)
+		case <-ticker.C:
+		}
 	}
-	t.Fatalf("did not reach %s", state)
-	return TaskView{}
 }
 
 func TestQuitFailureCanResumeOrAbortWithoutDeadlock(t *testing.T) {
